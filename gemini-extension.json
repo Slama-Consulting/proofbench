@@ -1,0 +1,43 @@
+{
+  "name": "proofbench",
+  "version": "0.2.0",
+  "description": "Skills and MCP servers for AI coding agents: bug analysis, regression tracing, fixes, features, cleanup, security, APK reverse engineering, tickets.",
+  "contextFileName": "GEMINI.md",
+  "mcpServers": {
+    "regression-tracer": {
+      "command": "node",
+      "args": [
+        "${extensionPath}${/}bundle${/}regression-tracer.mjs"
+      ],
+      "cwd": "${extensionPath}"
+    },
+    "workflow-gate": {
+      "command": "node",
+      "args": [
+        "${extensionPath}${/}bundle${/}workflow-gate.mjs"
+      ],
+      "cwd": "${extensionPath}"
+    },
+    "apk-inspector": {
+      "command": "node",
+      "args": [
+        "${extensionPath}${/}bundle${/}apk-inspector.mjs"
+      ],
+      "cwd": "${extensionPath}"
+    },
+    "ticket-reader": {
+      "command": "node",
+      "args": [
+        "${extensionPath}${/}bundle${/}ticket-reader.mjs"
+      ],
+      "cwd": "${extensionPath}"
+    },
+    "docs-lookup": {
+      "command": "node",
+      "args": [
+        "${extensionPath}${/}bundle${/}docs-lookup.mjs"
+      ],
+      "cwd": "${extensionPath}"
+    }
+  }
+}

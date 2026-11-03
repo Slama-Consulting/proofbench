@@ -1,0 +1,26 @@
+{
+  "name": "proofbench",
+  "version": "0.2.0",
+  "description": "Agent Skills and MCP servers for AI coding agents (Claude Code, GitHub Copilot, Codex, Cursor, Gemini CLI): bug analysis, regression tracing with git bisect, proven fixes, security audit, APK reverse engineering, ticket reading.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Slama Consulting",
+  "homepage": "https://github.com/Slama-Consulting/proofbench#readme",
+  "bugs": { "url": "https://github.com/Slama-Consulting/proofbench/issues" },
+  "engines": { "node": ">=20" },
+  "repository": { "type": "git", "url": "git+https://github.com/Slama-Consulting/proofbench.git" },
+  "keywords": [
+    "agent-skills", "mcp", "mcp-server", "model-context-protocol", "claude-code", "github-copilot",
+    "codex", "cursor", "gemini-cli", "ai-coding-agent", "git-bisect", "regression",
+    "root-cause-analysis", "security-audit", "secrets-scanning", "apk", "reverse-engineering",
+    "jira", "developer-tools"
+  ],
+  "scripts": {
+    "bundle": "node scripts/bundle.mjs",
+    "setup": "node scripts/setup.mjs",
+    "test": "node scripts/test-all.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.5"
+  }
+}

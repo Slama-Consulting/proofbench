@@ -1,0 +1,14 @@
+# Proofbench
+
+> Open-source Agent Skills and MCP servers for AI coding agents (Claude Code, GitHub Copilot, Codex, Cursor, Gemini CLI): bug analysis, regression tracing with git bisect, proven bug fixes, feature development, code cleanup, security audits, Android APK reverse engineering and ticket reading. Skills trigger automatically from plain sentences; scores are computed by MCP servers from recorded evidence.
+
+## Docs
+- [README](README.md): what it is, install for each assistant, FAQ, safety model
+- [Skills](skills/README.md): the seven skills and the router
+- [regression-tracer](mcp/regression-tracer/README.md): MCP server for regression investigations
+- [workflow-gate](mcp/workflow-gate/README.md): MCP server for proof-backed workflows
+- [Vision](docs/VISION.md): promise, target, risks
+
+## Optional
+- [Design specs](docs/design/specs/2026-11-02-regression-tracer-design.md)
+- [Contributing](CONTRIBUTING.md)

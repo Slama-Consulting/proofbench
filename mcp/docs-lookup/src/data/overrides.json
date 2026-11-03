@@ -1,0 +1,76 @@
+{
+  "entries": [
+    {
+      "id": "spotless-gradle",
+      "title": "Spotless (Gradle plugin)",
+      "match": {
+        "ecosystems": ["maven", "tool"],
+        "names": [
+          "com.diffplug.spotless",
+          "com.diffplug.spotless:com.diffplug.spotless.gradle.plugin",
+          "com.diffplug.spotless:spotless-plugin-gradle",
+          "spotless",
+          "spotless-gradle"
+        ],
+        "namePrefixes": ["com.diffplug.spotless."]
+      },
+      "repository": "https://github.com/diffplug/spotless",
+      "homepage": "https://github.com/diffplug/spotless/tree/main/plugin-gradle",
+      "documentationUrl": "https://github.com/diffplug/spotless/blob/main/plugin-gradle/README.md",
+      "sources": [
+        {
+          "repository": "https://github.com/diffplug/spotless",
+          "refTemplates": ["gradle/{version}", "plugin-gradle/{version}", "v{version}", "{version}"],
+          "files": ["plugin-gradle/README.md", "README.md"],
+          "dirs": []
+        }
+      ]
+    },
+    {
+      "id": "gradle",
+      "title": "Gradle build tool",
+      "match": {
+        "ecosystems": ["tool", "maven"],
+        "names": ["gradle", "gradle-wrapper", "org.gradle:gradle-tooling-api"],
+        "namePrefixes": []
+      },
+      "repository": "https://github.com/gradle/gradle",
+      "homepage": "https://gradle.org",
+      "documentationUrl": "https://docs.gradle.org/current/userguide/userguide.html",
+      "sources": [
+        {
+          "repository": "https://github.com/gradle/gradle",
+          "refTemplates": ["v{version}", "v{version}.0", "{version}"],
+          "files": ["README.md"],
+          "dirs": ["platforms/documentation/docs/src/docs/userguide"]
+        }
+      ]
+    },
+    {
+      "id": "kotlin",
+      "title": "Kotlin language and Gradle plugin",
+      "match": {
+        "ecosystems": ["tool", "maven"],
+        "names": ["kotlin", "org.jetbrains.kotlin:kotlin-gradle-plugin", "org.jetbrains.kotlin:kotlin-stdlib"],
+        "namePrefixes": ["org.jetbrains.kotlin."]
+      },
+      "repository": "https://github.com/JetBrains/kotlin",
+      "homepage": "https://kotlinlang.org",
+      "documentationUrl": "https://kotlinlang.org/docs/home.html",
+      "sources": [
+        {
+          "repository": "https://github.com/JetBrains/kotlin",
+          "refTemplates": ["v{version}", "{version}"],
+          "files": ["README.md"],
+          "dirs": ["docs"]
+        },
+        {
+          "repository": "https://github.com/JetBrains/kotlin-web-site",
+          "refTemplates": [],
+          "files": [],
+          "dirs": ["docs/topics"]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "mcpServers": {
+    "regression-tracer": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bundle/regression-tracer.mjs"
+      ]
+    },
+    "workflow-gate": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bundle/workflow-gate.mjs"
+      ]
+    },
+    "apk-inspector": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bundle/apk-inspector.mjs"
+      ]
+    },
+    "ticket-reader": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bundle/ticket-reader.mjs"
+      ]
+    },
+    "docs-lookup": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bundle/docs-lookup.mjs"
+      ]
+    }
+  }
+}
