@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.1 - 2026-11-04
 
 - `apk-inspector`: `apk_calls` returns `callConstants`, the integers and strings certainly held by the arguments of each call (for example `PendingIntent` flags, the permission given to `registerReceiver`, `Intent` actions), and `apk_xrefs` shows them in its hits (`[arg3=0x4000000]`). The tracker is conservative: it forgets a value at every write, branch, switch case and exception handler, and gives up on a method it cannot follow.
 - `apk-inspector`: `apk_entrypoint_checks` reports `readPermission` and `writePermission` of each component, not only `permission`.

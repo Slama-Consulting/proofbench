@@ -1,6 +1,6 @@
 {
   "name": "proofbench",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Agent Skills and MCP servers for AI coding agents (Claude Code, GitHub Copilot, Codex, Cursor, Gemini CLI): bug analysis, regression tracing with git bisect, proven fixes, security audit, APK reverse engineering, ticket reading.",
   "type": "module",
   "license": "MIT",
