@@ -3,6 +3,7 @@ import { ApkError, LIMITS } from "./errors.js";
 import { DexFile, accessNames, descriptorToName } from "./dex.js";
 import { DexCode, invokeName, methodAccessNames, type ClassDef, type CodeItem, type DefinedMethod, type MethodRef } from "./bytecode.js";
 import { readManifest } from "./manifest.js";
+import type { ConstResult, KnownArg } from "./constants.js";
 
 /**
  * Static reading of the code of an APK: which methods exist, what they call, who calls what, and whether the entry
@@ -29,6 +30,8 @@ interface Call {
   opName: string;
   ref: MethodRef;
   regs: number[];
+  /** Position of the instruction in the method, in code units. */
+  unit: number;
 }
 
 interface MethodBody {
@@ -69,6 +72,7 @@ export class CodeIndex {
   private readonly bodies = new Map<DefinedMethod, MethodBody>();
   private readonly defCache = new Map<string, Def | null>();
   private readonly subCache = new Map<string, boolean>();
+  private readonly constCache = new Map<DefinedMethod, ConstResult>();
   private implIndex: Map<string, ClassInfo[]> | undefined;
 
   private constructor(private readonly apk: Apk) {}
@@ -189,9 +193,9 @@ export class CodeIndex {
       body.code = code;
       if (code) {
         const walked = ci.code.walk(code, {
-          invoke: (opcode, methodIdx, regs) => {
+          invoke: (opcode, methodIdx, regs, unit) => {
             const ref = ci.code.methodRef(methodIdx);
-            if (ref) body.calls.push({ op: opcode, opName: invokeName(opcode), ref, regs });
+            if (ref) body.calls.push({ op: opcode, opName: invokeName(opcode), ref, regs, unit });
             else body.unresolvedRefs++;
           },
           constString: (idx) => {
@@ -217,6 +221,23 @@ export class CodeIndex {
     }
     if (cache) this.bodies.set(m, body);
     return body;
+  }
+
+  /** The constants certainly held by the arguments of each call of a method (see constants.ts). */
+  constants(ci: ClassInfo, m: DefinedMethod, body: MethodBody): ConstResult {
+    const hit = this.constCache.get(m);
+    if (hit) return hit;
+    let result: ConstResult = { sites: new Map(), complete: true };
+    if (body.code) {
+      try {
+        result = ci.code.constants(body.code);
+      } catch (e) {
+        if (e instanceof ApkError && /time limit/.test(e.message)) throw e;
+        result = { sites: new Map(), complete: false };
+      }
+    }
+    this.constCache.set(m, result);
+    return result;
   }
 
   /** The app methods a call can reach. Empty when the callee lives outside the app. */
@@ -357,6 +378,21 @@ function callSummary(index: CodeIndex, body: MethodBody): { callee: string; op: 
 
 const unique = <T>(xs: T[], max: number): T[] => [...new Set(xs)].slice(0, max);
 
+const MAX_CONST_SITES = 200;
+
+/** Constants passed to calls: only call sites with at least one known argument are listed. */
+function callConstants(index: CodeIndex, ci: ClassInfo, m: DefinedMethod, body: MethodBody): { callConstants: object[]; constantsComplete: boolean } {
+  const r = index.constants(ci, m, body);
+  const sites: object[] = [];
+  for (const c of body.calls) {
+    const known = r.sites.get(c.unit);
+    if (known && sites.length < MAX_CONST_SITES) sites.push({ callee: c.ref.sig, op: c.opName, known });
+  }
+  return { callConstants: sites, constantsComplete: r.complete };
+}
+
+const describeArg = (k: KnownArg): string => (k.string !== undefined ? `arg${k.arg}=${JSON.stringify(k.string.length > 60 ? k.string.slice(0, 60) + "…" : k.string)}` : `arg${k.arg}=${k.hex}`);
+
 export function apkCalls(apk: Apk, o: { cls: string; method: string; depth?: number | undefined }): object {
   const index = CodeIndex.open(apk);
   const ci = index.classes.get(descriptorOf(o.cls));
@@ -375,6 +411,7 @@ export function apkCalls(apk: Apk, o: { cls: string; method: string; depth?: num
       strings: unique(body.strings, 100).map((s) => (s.length > LIMITS.maxStringChars ? s.slice(0, LIMITS.maxStringChars) : s)),
       newInstances: unique(body.newInstances.map(descriptorToName), 100),
       unresolvedRefs: body.unresolvedRefs,
+      ...callConstants(index, ci!, m, body),
     };
     // Without `depth` only the method itself is described; with it, the calls inside the app are followed too.
     if (o.depth !== undefined) {
@@ -412,7 +449,13 @@ export function apkXrefs(apk: Apk, o: { method?: string | undefined; string?: st
       if (m.codeOff === 0) continue;
       const body = index.body(ci, m, false);
       const hits: string[] = [];
-      if (mNeedle) for (const c of body.calls) if (c.ref.sig.toLowerCase().includes(mNeedle)) hits.push(`${c.opName} ${c.ref.sig}`);
+      if (mNeedle) {
+        for (const c of body.calls) {
+          if (!c.ref.sig.toLowerCase().includes(mNeedle)) continue;
+          const known = index.constants(ci, m, body).sites.get(c.unit);
+          hits.push(`${c.opName} ${c.ref.sig}${known ? ` [${known.map(describeArg).join(", ")}]` : ""}`);
+        }
+      }
       if (sNeedle) for (const s of body.strings) if (s.toLowerCase().includes(sNeedle)) hits.push(`string "${s.length > 120 ? s.slice(0, 120) + "…" : s}"`);
       if (!hits.length) continue;
       matched++;
@@ -531,7 +574,9 @@ export function apkEntrypointChecks(apk: Apk, o: { component?: string | undefine
       else if (unused.length) observed.push(`${m.name} never reads parameter(s) ${unused.map((p) => `#${p.index} (${p.type})`).join(", ")}.`);
     }
     if (c.permission) observed.push(`The manifest requires permission ${c.permission}; Android enforces it before the entry point runs.`);
-    return { name: c.name, kind: c.kind, exported: true, permission: c.permission ?? null, found: root !== undefined, assessment, entryMethods, observed, unknown: UNKNOWN_NOTES };
+    const split = [c.readPermission ? `read permission ${c.readPermission}` : "", c.writePermission ? `write permission ${c.writePermission}` : ""].filter(Boolean);
+    if (split.length) observed.push(`The manifest requires ${split.join(" and ")}; Android enforces them before the entry point runs.`);
+    return { name: c.name, kind: c.kind, exported: true, permission: c.permission ?? null, readPermission: c.readPermission ?? null, writePermission: c.writePermission ?? null, found: root !== undefined, assessment, entryMethods, observed, unknown: UNKNOWN_NOTES };
   });
 
   return { depth: o.depth, components, limits: LIMIT_NOTES, ...(index.errors.length ? { dexErrors: index.errors } : {}) };

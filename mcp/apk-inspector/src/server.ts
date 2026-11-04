@@ -135,21 +135,21 @@ export function createServer(env: NodeJS.ProcessEnv = process.env): McpServer {
 
   tool(
     "apk_calls",
-    "Reads the bytecode of one method (class given by its exact dotted name, method by its exact name): the methods it calls (with the invoke kind and whether the callee is in the app), string constants, classes it instantiates, how often each parameter register is read and what it is passed to. With `depth` (1 to 5 levels, the method itself being level 1), follows calls inside the app (virtual calls resolved through superclasses, interfaces and classes the method instantiates) and lists the reachable methods, external calls and strings.",
+    "Reads the bytecode of one method (class given by its exact dotted name, method by its exact name): the methods it calls (with the invoke kind and whether the callee is in the app), string constants, classes it instantiates, how often each parameter register is read and what it is passed to, and the constants (integers such as PendingIntent flags, strings such as actions and permission names) that certainly sit in the arguments of each call (`callConstants`). With `depth` (1 to 5 levels, the method itself being level 1), follows calls inside the app (virtual calls resolved through superclasses, interfaces and classes the method instantiates) and lists the reachable methods, external calls and strings.",
     z.strictObject({ path, class: z.string().min(1).max(300), method: z.string().min(1).max(300), depth: z.number().int().min(1).max(5).optional() }),
     ({ path: p, class: cls, method, depth }) => withApk(p, (apk) => apkCalls(apk, { cls, method, depth })),
   );
 
   tool(
     "apk_xrefs",
-    "Finds the methods that call a method (substring of `Lcls;->name(proto)`, case-insensitive) and/or use a string constant (substring). At least one of the two is required.",
+    "Finds the methods that call a method (substring of `Lcls;->name(proto)`, case-insensitive) and/or use a string constant (substring). At least one of the two is required. A call whose arguments are known constants is shown with them, for example `[arg3=0x4000000]`.",
     z.strictObject({ path, method: z.string().min(1).max(300).optional(), string: z.string().min(1).max(300).optional(), limit: z.number().int().min(1).max(500).default(50) }),
     ({ path: p, method, string, limit }) => withApk(p, (apk) => apkXrefs(apk, { method, string, limit })),
   );
 
   tool(
     "apk_entrypoint_checks",
-    "For each exported component of the manifest (launcher activities excluded, `component` filters by name), finds its entry methods (onGetRoot, onBind, query, onReceive, onCreate...) in the app and its superclasses, follows the calls inside the app up to `depth` levels, and reports the caller-validation APIs reachable (getCallingUid, checkCallingPermission, getPackagesForUid, signature lookups...), the package-name and permission strings used, and which parameters the entry method reads. Observed facts only: it never says a component is safe or vulnerable.",
+    "For each exported component of the manifest (launcher activities excluded, `component` filters by name), finds its entry methods (onGetRoot, onBind, query, onReceive, onCreate...) in the app and its superclasses, follows the calls inside the app up to `depth` levels, and reports the caller-validation APIs reachable (getCallingUid, checkCallingPermission, getPackagesForUid, signature lookups...), the package-name and permission strings used, which parameters the entry method reads, and the manifest `permission`, `readPermission` and `writePermission` of the component. Observed facts only: it never says a component is safe or vulnerable.",
     z.strictObject({ path, component: z.string().min(1).max(300).optional(), depth: z.number().int().min(1).max(5).default(3) }),
     ({ path: p, component, depth }) => withApk(p, (apk) => apkEntrypointChecks(apk, { component, depth })),
   );

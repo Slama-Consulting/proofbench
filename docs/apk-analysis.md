@@ -15,6 +15,8 @@ New in 0.3.0, in one table:
 | What methods does this class have? | Only the class name | `apk_methods` |
 | Does this exported component check who calls it? | Not possible | `apk_entrypoint_checks` |
 | Show me the Java | Not possible | Optional `apk_decompile` through a local jadx |
+| Which flags does this `PendingIntent` use? Which permission does this receiver register with? | Not visible | `callConstants` in `apk_calls` and `[argN=...]` in `apk_xrefs` hits |
+| Which read and write permissions guard this provider? | Only `android:permission` | `apk_entrypoint_checks` reports `permission`, `readPermission` and `writePermission` |
 
 ## Asking the agent
 
@@ -101,6 +103,7 @@ Reading the result for each component:
 - `assessment`: `caller-check-apis-observed` (at least one API above is reachable), `no-caller-check-observed` (none is, within the depth), or `entry-point-not-found` (the class is not in the dex files, or no entry method with code exists in the app).
 - `entryMethods[].parameters`: for each declared parameter, `readCount` is the number of instructions that read its register and `passedTo` lists the methods that receive it directly. A parameter with `readCount: 0` is never used. A parameter that is read may have been read after the register was reused, so "read" is a lead, "never read" is a fact.
 - `allowListCandidates` and `permissionStrings`: package-name-looking and permission-looking string constants in the code that was reached.
+- `permission`, `readPermission`, `writePermission`: what the manifest sets on the component (`null` when absent). A provider is often guarded by a read or a write permission only.
 - `observed` and `unknown`: the report in words. `unknown` always says that the tool cannot tell whether the result of a check decides what is returned or done.
 
 Two sentences to keep in mind: **a reachable check API does not prove the component is protected**, and **no reachable check does not prove it is unprotected**. The manifest permission, the framework (for example, a media browser service is connected through the framework), or code deeper than the depth analysed may protect it. The tool never says "safe" or "vulnerable".
@@ -127,6 +130,24 @@ Two sentences to keep in mind: **a reachable check API does not prove the compon
 
 The honest conclusion is: the client package name is used to choose a root, no UID, permission or signature check was observed, and whether `getRoot` can refuse a caller is **unknown**. To settle it, read that method: with `apk_decompile` if you enabled it, or in the source.
 
+## Constants passed to calls
+
+Many questions are answered by a value, not by a call: the flags of a `PendingIntent`, the permission given to `registerReceiver`, the action of an `Intent`, the mode of a `SharedPreferences`. `apk_calls` lists them in `callConstants`, and `apk_xrefs` appends them to the hit:
+
+```text
+RadioController.registerReceivers() -> invoke-virtual/range ...;->registerReceiver(...) [arg3="vendor.car.permission.RADIO", arg4=0x0, arg5=0x2]
+NotificationProvider.createActions() -> invoke-static PendingIntent;->getBroadcast(...) [arg1=0x65, arg3=0x14000000]
+```
+
+`argN` is the position among the call's registers: for an instance call, position 0 is the receiver. To read the values (check them against the Android documentation for your target SDK):
+
+| Value | Meaning |
+|---|---|
+| `PendingIntent` flags `0x04000000` / `0x02000000` | `FLAG_IMMUTABLE` / `FLAG_MUTABLE`. Others: `0x40000000` one-shot, `0x20000000` no-create, `0x10000000` cancel-current, `0x08000000` update-current. `0x14000000` is immutable and cancel-current |
+| `registerReceiver` flags `0x2` / `0x4` | `RECEIVER_EXPORTED` / `RECEIVER_NOT_EXPORTED`. With a non-null broadcast permission argument, only senders holding it can reach the receiver |
+
+How far to trust it: the tracker is deliberately conservative. A constant is reported only when the same method loaded it and nothing wrote the register since, and every branch, switch case and exception handler forgets what was known, so a value that depends on the path is never reported. A value that comes from a field, a call result, arithmetic or another method is simply absent: **absent means unknown, not zero or false**. When the method uses something the tracker cannot follow (a malformed table, a switch payload outside the code), the tool reports `constantsComplete: false`.
+
 ## Reading Java with jadx (optional)
 
 `apk_decompile` is **off by default** and does not appear in the tool list. Enable it when the bytecode tools point at a method you need to read.
@@ -146,7 +167,7 @@ claude mcp add --scope user -e APK_INSPECTOR_JADX=auto apk-inspector -- node "/p
 ## What it cannot do
 
 - It does not decompile unless you enable the jadx bridge, and it does not decode `resources.arsc`, so `@string/...` labels stay as ids.
-- It does not follow reflection, JNI or code loaded at runtime, and it does not track values through registers or evaluate control flow.
+- It does not follow reflection, JNI or code loaded at runtime, and it does not evaluate control flow. Values are tracked only as constants inside one method (see above), not across calls or fields.
 - Framework and library code is not analysed: only code in the APK is followed, so anything that runs before an entry point (in the framework or in a library) is invisible.
 - Debug builds that are instrumented for coverage (`jacoco`) add methods, so the number of "reached" methods is larger than in a release build.
 - It reads single `.apk` files, not `.aab`, `.apks` or `.xapk` bundles.

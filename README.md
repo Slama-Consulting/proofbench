@@ -12,7 +12,7 @@ Say *"analyze this bug"*, *"build this feature"*, *"clean this up"*, *"secure th
 [![Node 20+](https://img.shields.io/badge/node-%E2%89%A520-339933.svg)](https://nodejs.org)
 [![MCP servers](https://img.shields.io/badge/MCP-5%20servers-blue.svg)](mcp/)
 [![Agent Skills](https://img.shields.io/badge/Agent%20Skills-7%20skills-purple.svg)](skills/)
-[![Tests](https://img.shields.io/badge/tests-1%2C569%20passing-brightgreen.svg)](mcp/)
+[![Tests](https://img.shields.io/badge/tests-1%2C592%20passing-brightgreen.svg)](mcp/)
 
 [Install](#install) · [Features](#features) · [How it works](#how-it-works) · [FAQ](#faq) · [Safety](#safety-model)
 
@@ -198,7 +198,7 @@ Most collections are prompts. Proofbench's differentiator is that the **score is
 
 ## Status and limits
 
-- Verified: **1,569 automated tests** pass on Linux (`npm test`; a few more only run on Windows or macOS), every bundle starts and answers `initialize` and `tools/list` over stdio, and the installer was run against throwaway directories for Copilot, Codex, Cursor and Gemini: idempotent, non-destructive, fully reversible.
+- Verified: **1,592 automated tests** pass on Linux (`npm test`; a few more only run on Windows or macOS), every bundle starts and answers `initialize` and `tools/list` over stdio, and the installer was run against throwaway directories for Copilot, Codex, Cursor and Gemini: idempotent, non-destructive, fully reversible.
 - Not yet verified in a live session on every assistant. Skill activation is the model's decision, helped by the router and the always-on block.
 - Install paths follow each vendor's documentation as of November 2026; they move. If one has changed, `scripts/setup.mjs` is the single place to fix.
 - The Cursor and Gemini paths read skills from your checkout, so keep the clone where it is.

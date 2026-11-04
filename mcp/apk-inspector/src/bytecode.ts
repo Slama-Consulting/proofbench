@@ -1,5 +1,6 @@
 import { ApkError, type Deadline } from "./errors.js";
 import type { DexFile } from "./dex.js";
+import { trackConstants, type ConstResult } from "./constants.js";
 
 /**
  * A reader for the parts of a DEX file that hold code: prototypes, method ids, class data, code items and the
@@ -38,6 +39,8 @@ export interface CodeItem {
   registers: number;
   ins: number;
   outs: number;
+  /** Number of try_items that follow the instructions. */
+  tries: number;
   insnsOff: number;
   units: number;
 }
@@ -222,11 +225,16 @@ export class DexCode {
     if (m.codeOff + 16 > this.buf.length) throw new ApkError("code item lies outside the file");
     const units = this.buf.readUInt32LE(m.codeOff + 12);
     if (m.codeOff + 16 + units * 2 > this.buf.length) throw new ApkError("code item runs past the end of the file");
-    return { registers: this.buf.readUInt16LE(m.codeOff), ins: this.buf.readUInt16LE(m.codeOff + 2), outs: this.buf.readUInt16LE(m.codeOff + 4), insnsOff: m.codeOff + 16, units };
+    return { registers: this.buf.readUInt16LE(m.codeOff), ins: this.buf.readUInt16LE(m.codeOff + 2), outs: this.buf.readUInt16LE(m.codeOff + 4), tries: this.buf.readUInt16LE(m.codeOff + 6), insnsOff: m.codeOff + 16, units };
   }
 
   walk(code: CodeItem, h: Handlers): WalkResult {
     return walkCode(this.buf, code.insnsOff, code.units, h, this.deadline);
+  }
+
+  /** Which argument registers of each call hold a known constant; see constants.ts. */
+  constants(code: CodeItem): ConstResult {
+    return trackConstants(this.buf, code.insnsOff, code.units, code.tries, (idx) => this.dex.string(idx), this.deadline);
   }
 }
 
@@ -261,10 +269,14 @@ const INVOKE_NAMES: Record<number, string> = {
   0xfb: "invoke-polymorphic/range",
 };
 
+/** Length in code units of a regular (non-payload) instruction. */
+export const opcodeLength = (opcode: number): number => LEN[opcode & 0xff]!;
+
 export const invokeName = (opcode: number): string => INVOKE_NAMES[opcode] ?? `invoke-0x${opcode.toString(16)}`;
 
 export interface Handlers {
-  invoke?(opcode: number, methodIdx: number, regs: number[]): void;
+  /** `unit` is the position of the instruction in the method, in 16-bit code units. */
+  invoke?(opcode: number, methodIdx: number, regs: number[], unit: number): void;
   constString?(stringIdx: number): void;
   newInstance?(typeIdx: number): void;
   /** A register read as an operand. A register that was overwritten and read again is counted too. */
@@ -343,7 +355,7 @@ export function walkCode(buf: Buffer, insnsOff: number, units: number, h: Handle
         const w = unit(i + 2);
         const regs = [w & 0xf, (w >> 4) & 0xf, (w >> 8) & 0xf, (w >> 12) & 0xf, a4].slice(0, count);
         for (const x of regs) r(x);
-        if (opc !== 0x24 && opc !== 0xfc) h.invoke?.(opc, unit(i + 1), regs);
+        if (opc !== 0x24 && opc !== 0xfc) h.invoke?.(opc, unit(i + 1), regs, i);
       } else if ((opc >= 0x74 && opc <= 0x78) || opc === 0x25 || opc === 0xfb || opc === 0xfd) {
         // 3rc / 4rcc: a run of `count` registers starting at C.
         const count = a8;
@@ -351,7 +363,7 @@ export function walkCode(buf: Buffer, insnsOff: number, units: number, h: Handle
         const regs: number[] = [];
         for (let k = 0; k < count; k++) regs.push(first + k);
         for (const x of regs) r(x);
-        if (opc !== 0x25 && opc !== 0xfd) h.invoke?.(opc, unit(i + 1), regs);
+        if (opc !== 0x25 && opc !== 0xfd) h.invoke?.(opc, unit(i + 1), regs, i);
       } else if (opc >= 0x7b && opc <= 0x8f) r(b4);
       else if (opc >= 0x90 && opc <= 0xaf) {
         const w = unit(i + 1);

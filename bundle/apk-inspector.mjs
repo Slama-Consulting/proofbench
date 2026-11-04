@@ -3379,9 +3379,9 @@ var require_utils = __commonJS({
       let output2 = "";
       for (let i = 0; i < input2.length; i++) {
         if (input2[i] === "%" && i + 2 < input2.length) {
-          const hex3 = input2.slice(i + 1, i + 3);
-          if (isHexPair(hex3)) {
-            const normalizedHex = hex3.toUpperCase();
+          const hex4 = input2.slice(i + 1, i + 3);
+          if (isHexPair(hex4)) {
+            const normalizedHex = hex4.toUpperCase();
             const decoded = String.fromCharCode(parseInt(normalizedHex, 16));
             if (decodeUnreserved && isUnreserved(decoded)) {
               output2 += decoded;
@@ -3401,9 +3401,9 @@ var require_utils = __commonJS({
       for (let i = 0; i < input2.length; i++) {
         const ch = input2[i];
         if (ch === "%" && i + 2 < input2.length) {
-          const hex3 = input2.slice(i + 1, i + 3);
-          if (isHexPair(hex3)) {
-            const normalizedHex = hex3.toUpperCase();
+          const hex4 = input2.slice(i + 1, i + 3);
+          if (isHexPair(hex4)) {
+            const normalizedHex = hex4.toUpperCase();
             const decoded = String.fromCharCode(parseInt(normalizedHex, 16));
             if (decoded !== "." && isUnreserved(decoded)) {
               output2 += decoded;
@@ -3443,9 +3443,9 @@ var require_utils = __commonJS({
       for (let i = 0; i < input2.length; i++) {
         const ch = input2[i];
         if (ch === "%" && i + 2 < input2.length) {
-          const hex3 = input2.slice(i + 1, i + 3);
-          if (isHexPair(hex3)) {
-            output2 += "%" + hex3.toUpperCase();
+          const hex4 = input2.slice(i + 1, i + 3);
+          if (isHexPair(hex4)) {
+            output2 += "%" + hex4.toUpperCase();
             i += 2;
             continue;
           }
@@ -3481,9 +3481,9 @@ var require_utils = __commonJS({
       for (let i = 0; i < input2.length; i++) {
         const ch = input2[i];
         if (ch === "%" && i + 2 < input2.length) {
-          const hex3 = input2.slice(i + 1, i + 3);
-          if (isHexPair(hex3)) {
-            output2 += "%" + hex3.toUpperCase();
+          const hex4 = input2.slice(i + 1, i + 3);
+          if (isHexPair(hex4)) {
+            output2 += "%" + hex4.toUpperCase();
             i += 2;
             continue;
           }
@@ -3528,9 +3528,9 @@ var require_utils = __commonJS({
       for (let i = 0; i < input2.length; i++) {
         const ch = input2[i];
         if (ch === "%" && i + 2 < input2.length) {
-          const hex3 = input2.slice(i + 1, i + 3);
-          if (isHexPair(hex3)) {
-            const normalizedHex = hex3.toUpperCase();
+          const hex4 = input2.slice(i + 1, i + 3);
+          if (isHexPair(hex4)) {
+            const normalizedHex = hex4.toUpperCase();
             const decoded = String.fromCharCode(parseInt(normalizedHex, 16));
             if (isUnreserved(decoded)) {
               output2 += decoded;
@@ -3568,9 +3568,9 @@ var require_utils = __commonJS({
       let output2 = "";
       for (let i = 0; i < input2.length; i++) {
         if (input2[i] === "%" && i + 2 < input2.length) {
-          const hex3 = input2.slice(i + 1, i + 3);
-          if (isHexPair(hex3)) {
-            output2 += "%" + hex3.toUpperCase();
+          const hex4 = input2.slice(i + 1, i + 3);
+          if (isHexPair(hex4)) {
+            output2 += "%" + hex4.toUpperCase();
             i += 2;
             continue;
           }
@@ -12192,8 +12192,8 @@ function base64urlToUint8Array(base64url3) {
 function uint8ArrayToBase64url(bytes) {
   return uint8ArrayToBase64(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
-function hexToUint8Array(hex3) {
-  const cleanHex = hex3.replace(/^0x/, "");
+function hexToUint8Array(hex4) {
+  const cleanHex = hex4.replace(/^0x/, "");
   if (cleanHex.length % 2 !== 0) {
     throw new Error("Invalid hex string length");
   }
@@ -27932,7 +27932,7 @@ function visit(schema, fnOrHandlers) {
     return h ? h(node2, rewritten) : node2;
   };
   const cache = /* @__PURE__ */ new Map();
-  function run2(s) {
+  function run3(s) {
     const cached2 = cache.get(s);
     if (cached2 === RESOLVING) {
       return new $ZodLazy({
@@ -27958,21 +27958,21 @@ function visit(schema, fnOrHandlers) {
         let changed = false;
         const newShape = {};
         for (const k of keys) {
-          const mapped = run2(oldShape[k]);
+          const mapped = run3(oldShape[k]);
           if (mapped !== oldShape[k])
             changed = true;
           newShape[k] = mapped;
         }
         let newCatchall = def.catchall;
         if (def.catchall) {
-          newCatchall = run2(def.catchall);
+          newCatchall = run3(def.catchall);
           if (newCatchall !== def.catchall)
             changed = true;
         }
         return changed ? clone(s, { ...def, shape: newShape, catchall: newCatchall }) : s;
       }
       case "array": {
-        const mapped = run2(def.element);
+        const mapped = run3(def.element);
         return mapped === def.element ? s : clone(s, { ...def, element: mapped });
       }
       case "tuple": {
@@ -27980,14 +27980,14 @@ function visit(schema, fnOrHandlers) {
         let changed = false;
         const newItems = [];
         for (const item of oldItems) {
-          const mapped = run2(item);
+          const mapped = run3(item);
           if (mapped !== item)
             changed = true;
           newItems.push(mapped);
         }
         let newRest = def.rest;
         if (def.rest) {
-          newRest = run2(def.rest);
+          newRest = run3(def.rest);
           if (newRest !== def.rest)
             changed = true;
         }
@@ -27995,12 +27995,12 @@ function visit(schema, fnOrHandlers) {
       }
       case "record":
       case "map": {
-        const newKey = run2(def.keyType);
-        const newVal = run2(def.valueType);
+        const newKey = run3(def.keyType);
+        const newVal = run3(def.valueType);
         return newKey === def.keyType && newVal === def.valueType ? s : clone(s, { ...def, keyType: newKey, valueType: newVal });
       }
       case "set": {
-        const newVal = run2(def.valueType);
+        const newVal = run3(def.valueType);
         return newVal === def.valueType ? s : clone(s, { ...def, valueType: newVal });
       }
       case "union": {
@@ -28008,7 +28008,7 @@ function visit(schema, fnOrHandlers) {
         let changed = false;
         const newOptions = [];
         for (const opt of oldOptions) {
-          const mapped = run2(opt);
+          const mapped = run3(opt);
           if (mapped !== opt)
             changed = true;
           newOptions.push(mapped);
@@ -28016,8 +28016,8 @@ function visit(schema, fnOrHandlers) {
         return changed ? clone(s, { ...def, options: newOptions }) : s;
       }
       case "intersection": {
-        const newLeft = run2(def.left);
-        const newRight = run2(def.right);
+        const newLeft = run3(def.left);
+        const newRight = run3(def.right);
         return newLeft === def.left && newRight === def.right ? s : clone(s, { ...def, left: newLeft, right: newRight });
       }
       case "optional":
@@ -28029,23 +28029,23 @@ function visit(schema, fnOrHandlers) {
       case "nonoptional":
       case "promise":
       case "success": {
-        const newInner = run2(def.innerType);
+        const newInner = run3(def.innerType);
         return newInner === def.innerType ? s : clone(s, { ...def, innerType: newInner });
       }
       case "pipe": {
-        const newIn = run2(def.in);
-        const newOut = run2(def.out);
+        const newIn = run3(def.in);
+        const newOut = run3(def.out);
         return newIn === def.in && newOut === def.out ? s : clone(s, { ...def, in: newIn, out: newOut });
       }
       case "function": {
-        const newInput = run2(def.input);
-        const newOutput = run2(def.output);
+        const newInput = run3(def.input);
+        const newOutput = run3(def.output);
         return newInput === def.input && newOutput === def.output ? s : clone(s, { ...def, input: newInput, output: newOutput });
       }
       case "lazy": {
         const original = def.getter;
         const { _cachedInner, ...rest } = def;
-        return clone(s, { ...rest, getter: () => run2(original()) });
+        return clone(s, { ...rest, getter: () => run3(original()) });
       }
       // A leaf by choice: `parts` are regex fragments, not data positions.
       case "template_literal":
@@ -28076,7 +28076,7 @@ function visit(schema, fnOrHandlers) {
       }
     }
   }
-  return run2(schema);
+  return run3(schema);
 }
 
 // mcp/apk-inspector/node_modules/@modelcontextprotocol/sdk/dist/esm/server/zod-compat.js
@@ -37237,6 +37237,184 @@ async function decompileClass(o) {
   }
 }
 
+// mcp/apk-inspector/src/constants.ts
+var MAX_HANDLERS = 4096;
+var MAX_STRING = 300;
+var s16 = (x) => x << 16 >> 16;
+var hex3 = (v) => `0x${(v >>> 0).toString(16)}`;
+var GiveUp = class extends Error {
+};
+function trackConstants(buf, insnsOff, units, tries, string4, deadline) {
+  try {
+    return run2(buf, insnsOff, units, tries, string4, deadline);
+  } catch (e) {
+    if (e instanceof GiveUp) return { sites: /* @__PURE__ */ new Map(), complete: false };
+    if (e instanceof ApkError) throw e;
+    return { sites: /* @__PURE__ */ new Map(), complete: false };
+  }
+}
+function run2(buf, insnsOff, units, tries, string4, deadline) {
+  const u = (i) => {
+    if (i < 0 || i >= units) throw new GiveUp();
+    return buf.readUInt16LE(insnsOff + i * 2);
+  };
+  const s32 = (i) => u(i) | u(i + 1) << 16 | 0;
+  const payloadLength = (i) => {
+    const w = u(i);
+    if ((w & 255) !== 0 || w === 0) return 0;
+    if (w === 256) return u(i + 1) * 2 + 4;
+    if (w === 512) return u(i + 1) * 4 + 2;
+    if (w === 768) return Math.floor(((u(i + 2) + u(i + 3) * 65536) * u(i + 1) + 1) / 2) + 4;
+    throw new GiveUp();
+  };
+  const targets = /* @__PURE__ */ new Set();
+  const target = (t) => {
+    if (t < 0 || t >= units) throw new GiveUp();
+    targets.add(t);
+  };
+  for (let i = 0; i < units; ) {
+    deadline.tick();
+    const pl = payloadLength(i);
+    if (pl) {
+      i += pl;
+      continue;
+    }
+    const w = u(i);
+    const opc = w & 255;
+    if (opc === 40) target(i + (w >> 8 << 24 >> 24));
+    else if (opc === 41) target(i + s16(u(i + 1)));
+    else if (opc === 42) target(i + s32(i + 1));
+    else if (opc >= 50 && opc <= 61) target(i + s16(u(i + 1)));
+    else if (opc === 43 || opc === 44) {
+      const p = i + s32(i + 1);
+      const packed = opc === 43;
+      if (u(p) !== (packed ? 256 : 512)) throw new GiveUp();
+      const size = u(p + 1);
+      const first = packed ? p + 4 : p + 2 + size * 2;
+      for (let k = 0; k < size; k++) target(i + s32(first + k * 2));
+    }
+    i += opcodeLength(opc);
+  }
+  if (tries > 0) {
+    const tableAt = insnsOff + units * 2 + (units % 2 ? 2 : 0);
+    let pos = tableAt + tries * 8;
+    if (pos >= buf.length) throw new GiveUp();
+    const uleb = () => {
+      let v = 0;
+      for (let n = 0; n < 5; n++) {
+        if (pos >= buf.length) throw new GiveUp();
+        const b = buf[pos++];
+        v += (b & 127) * 2 ** (7 * n);
+        if ((b & 128) === 0) return v;
+      }
+      throw new GiveUp();
+    };
+    const sleb = () => {
+      let v = 0;
+      let shift = 0;
+      for (let n = 0; n < 5; n++) {
+        if (pos >= buf.length) throw new GiveUp();
+        const b = buf[pos++];
+        v |= (b & 127) << shift;
+        shift += 7;
+        if ((b & 128) === 0) return shift < 32 && (b & 64) !== 0 ? v | -1 << shift : v;
+      }
+      throw new GiveUp();
+    };
+    const handlers = uleb();
+    if (handlers > MAX_HANDLERS) throw new GiveUp();
+    for (let h = 0; h < handlers; h++) {
+      deadline.tick();
+      const size = sleb();
+      for (let k = 0; k < Math.abs(size); k++) {
+        uleb();
+        target(uleb());
+      }
+      if (size <= 0) target(uleb());
+    }
+  }
+  const known = /* @__PURE__ */ new Map();
+  const sites = /* @__PURE__ */ new Map();
+  const del = (r) => void known.delete(r);
+  const delWide = (r) => {
+    known.delete(r);
+    known.delete(r + 1);
+  };
+  const set2 = (r, v) => void known.set(r, v);
+  const copy = (dst, src) => {
+    const v = known.get(src);
+    if (v) known.set(dst, v);
+    else known.delete(dst);
+  };
+  const isWideUnop = (o) => o === 125 || o === 126 || o === 128 || o === 129 || o === 131 || o === 134 || o === 136 || o === 137 || o === 139;
+  const isWideBinop = (o) => o >= 155 && o <= 165 || o >= 171 && o <= 175;
+  const isWide2addr = (o) => o >= 187 && o <= 197 || o >= 203 && o <= 207;
+  for (let i = 0; i < units; ) {
+    deadline.tick();
+    if (targets.has(i)) known.clear();
+    const pl = payloadLength(i);
+    if (pl) {
+      i += pl;
+      continue;
+    }
+    const w = u(i);
+    const opc = w & 255;
+    const a4 = w >> 8 & 15;
+    const b4 = w >> 12 & 15;
+    const a8 = w >> 8 & 255;
+    if (opc === 1 || opc === 7) copy(a4, b4);
+    else if (opc === 2 || opc === 8) copy(a8, u(i + 1));
+    else if (opc === 3 || opc === 9) copy(u(i + 1), u(i + 2));
+    else if (opc === 4) delWide(a4);
+    else if (opc === 5) delWide(a8);
+    else if (opc === 6) delWide(u(i + 1));
+    else if (opc === 10 || opc === 12 || opc === 13) del(a8);
+    else if (opc === 11) delWide(a8);
+    else if (opc === 18) set2(a4, { int: b4 << 28 >> 28 });
+    else if (opc === 19) set2(a8, { int: s16(u(i + 1)) });
+    else if (opc === 20) set2(a8, { int: s32(i + 1) });
+    else if (opc === 21) set2(a8, { int: u(i + 1) << 16 | 0 });
+    else if (opc >= 22 && opc <= 25) delWide(a8);
+    else if (opc === 26 || opc === 27) {
+      const idx = opc === 26 ? u(i + 1) : u(i + 1) + u(i + 2) * 65536;
+      const str2 = string4(idx);
+      if (str2 === null) del(a8);
+      else set2(a8, { str: str2.length > MAX_STRING ? str2.slice(0, MAX_STRING) : str2 });
+    } else if (opc === 28 || opc === 31 || opc === 34) del(a8);
+    else if (opc === 32 || opc === 33 || opc === 35) del(a4);
+    else if (opc >= 45 && opc <= 49) del(a8);
+    else if (opc >= 68 && opc <= 74) (opc === 69 ? delWide : del)(a8);
+    else if (opc >= 82 && opc <= 88) (opc === 83 ? delWide : del)(a4);
+    else if (opc >= 96 && opc <= 102) (opc === 97 ? delWide : del)(a8);
+    else if (opc >= 123 && opc <= 143) (isWideUnop(opc) ? delWide : del)(a4);
+    else if (opc >= 144 && opc <= 175) (isWideBinop(opc) ? delWide : del)(a8);
+    else if (opc >= 176 && opc <= 207) (isWide2addr(opc) ? delWide : del)(a4);
+    else if (opc >= 208 && opc <= 215) del(a4);
+    else if (opc >= 216 && opc <= 226) del(a8);
+    else if (opc === 254 || opc === 255) del(a8);
+    else if (opc >= 110 && opc <= 114 || opc === 250) {
+      const count = Math.min(w >> 12, 5);
+      const x = u(i + 2);
+      snapshot(i, [x & 15, x >> 4 & 15, x >> 8 & 15, x >> 12 & 15, a4].slice(0, count));
+    } else if (opc >= 116 && opc <= 120 || opc === 251) {
+      const regs = [];
+      for (let k = 0; k < a8; k++) regs.push(u(i + 2) + k);
+      snapshot(i, regs);
+    }
+    i += opcodeLength(opc);
+  }
+  function snapshot(at, regs) {
+    const out = [];
+    regs.forEach((r, arg) => {
+      const v = known.get(r);
+      if (!v) return;
+      out.push("int" in v ? { arg, int: v.int, hex: hex3(v.int) } : { arg, string: v.str });
+    });
+    if (out.length) sites.set(at, out);
+  }
+  return { sites, complete: true };
+}
+
 // mcp/apk-inspector/src/bytecode.ts
 var MAX_ULEB_BYTES = 5;
 var METHOD_ACCESS = [
@@ -37397,10 +37575,14 @@ var DexCode = class {
     if (m.codeOff + 16 > this.buf.length) throw new ApkError("code item lies outside the file");
     const units = this.buf.readUInt32LE(m.codeOff + 12);
     if (m.codeOff + 16 + units * 2 > this.buf.length) throw new ApkError("code item runs past the end of the file");
-    return { registers: this.buf.readUInt16LE(m.codeOff), ins: this.buf.readUInt16LE(m.codeOff + 2), outs: this.buf.readUInt16LE(m.codeOff + 4), insnsOff: m.codeOff + 16, units };
+    return { registers: this.buf.readUInt16LE(m.codeOff), ins: this.buf.readUInt16LE(m.codeOff + 2), outs: this.buf.readUInt16LE(m.codeOff + 4), tries: this.buf.readUInt16LE(m.codeOff + 6), insnsOff: m.codeOff + 16, units };
   }
   walk(code, h) {
     return walkCode(this.buf, code.insnsOff, code.units, h, this.deadline);
+  }
+  /** Which argument registers of each call hold a known constant; see constants.ts. */
+  constants(code) {
+    return trackConstants(this.buf, code.insnsOff, code.units, code.tries, (idx) => this.dex.string(idx), this.deadline);
   }
 };
 var LEN = new Uint8Array(256).fill(1);
@@ -37429,6 +37611,7 @@ var INVOKE_NAMES = {
   250: "invoke-polymorphic",
   251: "invoke-polymorphic/range"
 };
+var opcodeLength = (opcode) => LEN[opcode & 255];
 var invokeName = (opcode) => INVOKE_NAMES[opcode] ?? `invoke-0x${opcode.toString(16)}`;
 function walkCode(buf, insnsOff, units, h, deadline) {
   const unit = (i2) => buf.readUInt16LE(insnsOff + i2 * 2);
@@ -37494,14 +37677,14 @@ function walkCode(buf, insnsOff, units, h, deadline) {
         const w = unit(i + 2);
         const regs = [w & 15, w >> 4 & 15, w >> 8 & 15, w >> 12 & 15, a4].slice(0, count);
         for (const x of regs) r(x);
-        if (opc !== 36 && opc !== 252) h.invoke?.(opc, unit(i + 1), regs);
+        if (opc !== 36 && opc !== 252) h.invoke?.(opc, unit(i + 1), regs, i);
       } else if (opc >= 116 && opc <= 120 || opc === 37 || opc === 251 || opc === 253) {
         const count = a8;
         const first = unit(i + 2);
         const regs = [];
         for (let k = 0; k < count; k++) regs.push(first + k);
         for (const x of regs) r(x);
-        if (opc !== 37 && opc !== 253) h.invoke?.(opc, unit(i + 1), regs);
+        if (opc !== 37 && opc !== 253) h.invoke?.(opc, unit(i + 1), regs, i);
       } else if (opc >= 123 && opc <= 143) r(b4);
       else if (opc >= 144 && opc <= 175) {
         const w = unit(i + 1);
@@ -38014,6 +38197,7 @@ var CodeIndex = class _CodeIndex {
   bodies = /* @__PURE__ */ new Map();
   defCache = /* @__PURE__ */ new Map();
   subCache = /* @__PURE__ */ new Map();
+  constCache = /* @__PURE__ */ new Map();
   implIndex;
   static open(apk) {
     const idx = new _CodeIndex(apk);
@@ -38126,9 +38310,9 @@ var CodeIndex = class _CodeIndex {
       body.code = code;
       if (code) {
         const walked = ci.code.walk(code, {
-          invoke: (opcode, methodIdx, regs) => {
+          invoke: (opcode, methodIdx, regs, unit) => {
             const ref = ci.code.methodRef(methodIdx);
-            if (ref) body.calls.push({ op: opcode, opName: invokeName(opcode), ref, regs });
+            if (ref) body.calls.push({ op: opcode, opName: invokeName(opcode), ref, regs, unit });
             else body.unresolvedRefs++;
           },
           constString: (idx) => {
@@ -38154,6 +38338,22 @@ var CodeIndex = class _CodeIndex {
     }
     if (cache) this.bodies.set(m, body);
     return body;
+  }
+  /** The constants certainly held by the arguments of each call of a method (see constants.ts). */
+  constants(ci, m, body) {
+    const hit = this.constCache.get(m);
+    if (hit) return hit;
+    let result = { sites: /* @__PURE__ */ new Map(), complete: true };
+    if (body.code) {
+      try {
+        result = ci.code.constants(body.code);
+      } catch (e) {
+        if (e instanceof ApkError && /time limit/.test(e.message)) throw e;
+        result = { sites: /* @__PURE__ */ new Map(), complete: false };
+      }
+    }
+    this.constCache.set(m, result);
+    return result;
   }
   /** The app methods a call can reach. Empty when the callee lives outside the app. */
   targets(body, call) {
@@ -38265,6 +38465,17 @@ function callSummary(index, body) {
   return [...map2.values()];
 }
 var unique = (xs, max) => [...new Set(xs)].slice(0, max);
+var MAX_CONST_SITES = 200;
+function callConstants(index, ci, m, body) {
+  const r = index.constants(ci, m, body);
+  const sites = [];
+  for (const c of body.calls) {
+    const known = r.sites.get(c.unit);
+    if (known && sites.length < MAX_CONST_SITES) sites.push({ callee: c.ref.sig, op: c.opName, known });
+  }
+  return { callConstants: sites, constantsComplete: r.complete };
+}
+var describeArg = (k) => k.string !== void 0 ? `arg${k.arg}=${JSON.stringify(k.string.length > 60 ? k.string.slice(0, 60) + "\u2026" : k.string)}` : `arg${k.arg}=${k.hex}`;
 function apkCalls(apk, o) {
   const index = CodeIndex.open(apk);
   const ci = index.classes.get(descriptorOf(o.cls));
@@ -38282,7 +38493,8 @@ function apkCalls(apk, o) {
       calls: callSummary(index, body),
       strings: unique(body.strings, 100).map((s) => s.length > LIMITS.maxStringChars ? s.slice(0, LIMITS.maxStringChars) : s),
       newInstances: unique(body.newInstances.map(descriptorToName), 100),
-      unresolvedRefs: body.unresolvedRefs
+      unresolvedRefs: body.unresolvedRefs,
+      ...callConstants(index, ci, m, body)
     };
     if (o.depth !== void 0) {
       const visited = reach(index, [{ ci, m }], o.depth);
@@ -38319,7 +38531,11 @@ function apkXrefs(apk, o) {
       const body = index.body(ci, m, false);
       const hits = [];
       if (mNeedle) {
-        for (const c of body.calls) if (c.ref.sig.toLowerCase().includes(mNeedle)) hits.push(`${c.opName} ${c.ref.sig}`);
+        for (const c of body.calls) {
+          if (!c.ref.sig.toLowerCase().includes(mNeedle)) continue;
+          const known = index.constants(ci, m, body).sites.get(c.unit);
+          hits.push(`${c.opName} ${c.ref.sig}${known ? ` [${known.map(describeArg).join(", ")}]` : ""}`);
+        }
       }
       if (sNeedle) {
         for (const s of body.strings) if (s.toLowerCase().includes(sNeedle)) hits.push(`string "${s.length > 120 ? s.slice(0, 120) + "\u2026" : s}"`);
@@ -38429,7 +38645,9 @@ function apkEntrypointChecks(apk, o) {
       else if (unused.length) observed.push(`${m.name} never reads parameter(s) ${unused.map((p) => `#${p.index} (${p.type})`).join(", ")}.`);
     }
     if (c.permission) observed.push(`The manifest requires permission ${c.permission}; Android enforces it before the entry point runs.`);
-    return { name: c.name, kind: c.kind, exported: true, permission: c.permission ?? null, found: root !== void 0, assessment, entryMethods, observed, unknown: UNKNOWN_NOTES };
+    const split = [c.readPermission ? `read permission ${c.readPermission}` : "", c.writePermission ? `write permission ${c.writePermission}` : ""].filter(Boolean);
+    if (split.length) observed.push(`The manifest requires ${split.join(" and ")}; Android enforces them before the entry point runs.`);
+    return { name: c.name, kind: c.kind, exported: true, permission: c.permission ?? null, readPermission: c.readPermission ?? null, writePermission: c.writePermission ?? null, found: root !== void 0, assessment, entryMethods, observed, unknown: UNKNOWN_NOTES };
   });
   return { depth: o.depth, components, limits: LIMIT_NOTES, ...index.errors.length ? { dexErrors: index.errors } : {} };
 }
@@ -39410,10 +39628,10 @@ function createServer(env = process.env) {
   function toResult(text, isError) {
     return { content: [{ type: "text", text }], _meta: { untrusted: true }, ...isError ? { isError: true } : {} };
   }
-  function tool(name, description, inputSchema, run2, annotations = READS) {
+  function tool(name, description, inputSchema, run3, annotations = READS) {
     const handler = async (args) => {
       try {
-        const result = await run2(args);
+        const result = await run3(args);
         return toResult(JSON.stringify(Object.assign({ untrusted: true }, result, { untrusted: true })));
       } catch (e) {
         const message = e instanceof ApkError ? e.message : `internal error while analysing the file (${e instanceof Error ? e.name : "unknown"})`;
@@ -39497,19 +39715,19 @@ function createServer(env = process.env) {
   );
   tool(
     "apk_calls",
-    "Reads the bytecode of one method (class given by its exact dotted name, method by its exact name): the methods it calls (with the invoke kind and whether the callee is in the app), string constants, classes it instantiates, how often each parameter register is read and what it is passed to. With `depth` (1 to 5 levels, the method itself being level 1), follows calls inside the app (virtual calls resolved through superclasses, interfaces and classes the method instantiates) and lists the reachable methods, external calls and strings.",
+    "Reads the bytecode of one method (class given by its exact dotted name, method by its exact name): the methods it calls (with the invoke kind and whether the callee is in the app), string constants, classes it instantiates, how often each parameter register is read and what it is passed to, and the constants (integers such as PendingIntent flags, strings such as actions and permission names) that certainly sit in the arguments of each call (`callConstants`). With `depth` (1 to 5 levels, the method itself being level 1), follows calls inside the app (virtual calls resolved through superclasses, interfaces and classes the method instantiates) and lists the reachable methods, external calls and strings.",
     external_exports.strictObject({ path, class: external_exports.string().min(1).max(300), method: external_exports.string().min(1).max(300), depth: external_exports.number().int().min(1).max(5).optional() }),
     ({ path: p, class: cls, method, depth }) => withApk(p, (apk) => apkCalls(apk, { cls, method, depth }))
   );
   tool(
     "apk_xrefs",
-    "Finds the methods that call a method (substring of `Lcls;->name(proto)`, case-insensitive) and/or use a string constant (substring). At least one of the two is required.",
+    "Finds the methods that call a method (substring of `Lcls;->name(proto)`, case-insensitive) and/or use a string constant (substring). At least one of the two is required. A call whose arguments are known constants is shown with them, for example `[arg3=0x4000000]`.",
     external_exports.strictObject({ path, method: external_exports.string().min(1).max(300).optional(), string: external_exports.string().min(1).max(300).optional(), limit: external_exports.number().int().min(1).max(500).default(50) }),
     ({ path: p, method, string: string4, limit }) => withApk(p, (apk) => apkXrefs(apk, { method, string: string4, limit }))
   );
   tool(
     "apk_entrypoint_checks",
-    "For each exported component of the manifest (launcher activities excluded, `component` filters by name), finds its entry methods (onGetRoot, onBind, query, onReceive, onCreate...) in the app and its superclasses, follows the calls inside the app up to `depth` levels, and reports the caller-validation APIs reachable (getCallingUid, checkCallingPermission, getPackagesForUid, signature lookups...), the package-name and permission strings used, and which parameters the entry method reads. Observed facts only: it never says a component is safe or vulnerable.",
+    "For each exported component of the manifest (launcher activities excluded, `component` filters by name), finds its entry methods (onGetRoot, onBind, query, onReceive, onCreate...) in the app and its superclasses, follows the calls inside the app up to `depth` levels, and reports the caller-validation APIs reachable (getCallingUid, checkCallingPermission, getPackagesForUid, signature lookups...), the package-name and permission strings used, which parameters the entry method reads, and the manifest `permission`, `readPermission` and `writePermission` of the component. Observed facts only: it never says a component is safe or vulnerable.",
     external_exports.strictObject({ path, component: external_exports.string().min(1).max(300).optional(), depth: external_exports.number().int().min(1).max(5).default(3) }),
     ({ path: p, component, depth }) => withApk(p, (apk) => apkEntrypointChecks(apk, { component, depth }))
   );
