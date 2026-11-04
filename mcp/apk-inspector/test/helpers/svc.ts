@@ -108,3 +108,16 @@ export function serviceApk(o: SvcOpts = {}): { path: string; buf: Buffer; layout
   const path = buildApk({ manifest: manifestWithService(o.servicePermission), dex: [], extra: [{ name: "classes.dex", data: buf }], signing: "v2" });
   return { path, buf, layout };
 }
+
+/** The fixture manifest where the exported provider carries the given permissions. */
+export function providerApk(perms: { permission?: string; read?: string; write?: string }): { path: string } {
+  const tree = manifestTree();
+  const app = tree.children!.find((x) => x.name === "application")!;
+  const provider = app.children!.find((x) => x.name === "provider")!;
+  provider.attrs = [...(provider.attrs ?? [])];
+  if (perms.permission) provider.attrs.push(attr("permission", perms.permission));
+  if (perms.read) provider.attrs.push(attr("readPermission", perms.read));
+  if (perms.write) provider.attrs.push(attr("writePermission", perms.write));
+  const { buf } = buildCodeDex(serviceClasses("none"));
+  return { path: buildApk({ manifest: buildAxml(tree, { resIds: RES_IDS }), dex: [], extra: [{ name: "classes.dex", data: buf }], signing: "v2" }) };
+}

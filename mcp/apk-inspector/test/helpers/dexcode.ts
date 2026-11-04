@@ -290,4 +290,14 @@ export const op = {
   packedSwitchPayload: (n: number): number[] => [0x0100, n, 0, 0, ...new Array<number>(n * 2).fill(0)],
   sparseSwitchPayload: (n: number): number[] => [0x0200, n, ...new Array<number>(n * 4).fill(0)],
   fillArrayDataPayload: (width: number, n: number): number[] => [0x0300, width, n & 0xffff, n >>> 16, ...new Array<number>(Math.ceil((width * n) / 2)).fill(0)],
+  const16: (a: number, v: number): number[] => [0x0013 | (a << 8), v & 0xffff],
+  const32: (a: number, v: number): number[] => [0x0014 | (a << 8), v & 0xffff, (v >>> 16) & 0xffff],
+  /** const/high16: the value is `v << 16`. */
+  constHigh16: (a: number, v: number): number[] => [0x0015 | (a << 8), v & 0xffff],
+  moveWide: (a: number, b: number): number[] => [0x0004 | (a << 8) | (b << 12)],
+  addIntLit8: (a: number, b: number, lit: number): number[] => [0x00d8 | (a << 8), b | ((lit & 0xff) << 8)],
+  /** packed-switch vA with the signed offset (in code units) of its payload. */
+  packedSwitch: (a: number, payloadOff: number): number[] => [0x002b | (a << 8), payloadOff & 0xffff, (payloadOff >>> 16) & 0xffff],
+  /** A packed-switch payload whose case targets are the given offsets (in code units, relative to the switch). */
+  packedSwitchPayloadTo: (targets: number[]): number[] => [0x0100, targets.length, 0, 0, ...targets.flatMap((t) => [t & 0xffff, (t >>> 16) & 0xffff])],
 };
