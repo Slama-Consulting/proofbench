@@ -434,7 +434,8 @@ describe("concurrency", () => {
     expect(loadInvestigation(o.id, root).evidence).toHaveLength(6);
   });
 
-  it("also_serialises_when_the_id_casing_differs", async () => {
+  // Two casings of an id only name the same investigation file on case-insensitive filesystems (Windows, macOS).
+  it.runIf(process.platform === "win32" || process.platform === "darwin")("also_serialises_when_the_id_casing_differs", async () => {
     const o = await withSnapshot();
     const upper = o.id.toUpperCase();
     const replies = await Promise.all(

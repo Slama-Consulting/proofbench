@@ -356,7 +356,8 @@ describe("tools", () => {
     expect((await e.s.call("gate_start", { workflow: "clean-up", repoPath: e.tmp, commands: COMMANDS })).isError).toBe(true);
   });
 
-  it("gate_start validates a .bat right at open", async () => {
+  // A .bat only exists as a runnable command on Windows; elsewhere the command is simply not found.
+  it.runIf(process.platform === "win32")("gate_start validates a .bat right at open", async () => {
     write(repo, "gradlew.bat", "@echo off\r\n");
     const r = await e.s.call("gate_start", { workflow: "clean-up", repoPath: repo, commands: { test: ["gradlew.bat", "a&b"] } });
     expect(r.isError).toBe(process.platform === "win32");
