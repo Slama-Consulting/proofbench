@@ -114,6 +114,17 @@ export class DexFile {
     }
   }
 
+  /** The raw bytes of the file, for readers that parse further tables (see bytecode.ts). */
+  get bytes(): Buffer {
+    return this.buf;
+  }
+
+  /** The type descriptor as written in the file (`Lcom/example/Foo;`, `I`, `[B`), or null if the index is invalid. */
+  typeDescriptor(typeIdx: number): string | null {
+    if (typeIdx === NO_INDEX || typeIdx < 0 || typeIdx >= this.typeCount) return null;
+    return this.string(this.buf.readUInt32LE(this.typeIdsOff + typeIdx * 4));
+  }
+
   typeName(typeIdx: number): string | null {
     if (typeIdx === NO_INDEX || typeIdx >= this.typeCount) return null;
     const sIdx = this.buf.readUInt32LE(this.typeIdsOff + typeIdx * 4);

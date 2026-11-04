@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { connect, type Connected } from "./helpers/mcp.js";
 import { cleanupTmp } from "./helpers/fixtures.js";
 import { serviceApk } from "./helpers/svc.js";
+import { op } from "./helpers/dexcode.js";
+import { serviceClasses } from "./helpers/svc.js";
 
 let c: Connected;
 beforeAll(async () => {
@@ -136,5 +138,23 @@ describe("apk_entrypoint_checks", () => {
     expect(one.components.map((x: Component) => x.name)).toEqual(["com.example.app.MyService"]);
     expect((await c.call("apk_entrypoint_checks", { path, depth: 0 })).isError).toBe(true);
     expect((await c.call("apk_entrypoint_checks", { path, depth: 6 })).isError).toBe(true);
+  });
+
+  it("does not mistake inherited JavaScript property names for check APIs", async () => {
+    const classes = serviceClasses("none");
+    classes[0]!.methods![0]!.code = {
+      registers: 8,
+      ins: 4,
+      outs: 3,
+      units: (a) => [
+        ...op.invoke("virtual", a.method({ cls: "java.lang.Object", name: "toString", ret: "Ljava/lang/String;" }), [4]),
+        ...op.invoke("static", a.method({ cls: "java.lang.Long", name: "valueOf", params: ["J"], ret: "Ljava/lang/Long;" }), [5, 6]),
+        ...op.invoke("virtual", a.method({ cls: "java.lang.Object", name: "constructor" }), [4]),
+        ...op.invoke("virtual", a.method({ cls: "java.lang.Object", name: "hasOwnProperty" }), [4]),
+        ...op.retObject(0),
+      ],
+    };
+    const m = onGetRoot(await checks({ classes }));
+    expect(m.callerChecks).toEqual([]);
   });
 });
