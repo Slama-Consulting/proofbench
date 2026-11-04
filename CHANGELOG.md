@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 - 2026-11-04
 
 - `apk-inspector`: a built-in Dalvik bytecode reader (no external tool) and four tools on top of it: `apk_methods`, `apk_calls`, `apk_xrefs` and `apk_entrypoint_checks` (caller-validation APIs reachable from the entry points of exported components, reported as observed facts and unknowns).
 - `apk-inspector`: optional `apk_decompile` tool, off unless `APK_INSPECTOR_JADX` is set, that reads one class as Java through a locally installed jadx in a private temporary directory.
