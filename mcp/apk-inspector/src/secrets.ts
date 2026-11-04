@@ -173,3 +173,22 @@ export function scanTextEntries(apk: Apk, scanner: SecretScanner): { scanned: nu
   }
   return { scanned, skipped };
 }
+
+/** Replaces every secret-shaped value in `text` with its masked form. Used before showing raw file content. */
+export function redactSecrets(text: string): { text: string; count: number } {
+  let count = 0;
+  let out = text;
+  for (const rule of RULES) {
+    out = out.replace(new RegExp(rule.re.source, rule.re.flags), (...args: unknown[]) => {
+      const whole = args[0] as string;
+      count++;
+      const secret = rule.group === undefined ? undefined : (args[rule.group] as string | undefined);
+      return secret === undefined ? mask(whole) : whole.replace(secret, () => mask(secret));
+    });
+  }
+  out = out.replace(/\b(https?|wss?):\/\/([^\s/@"'<>\\?#]+)@/g, (_m, scheme: string, cred: string) => {
+    count++;
+    return `${scheme}://${mask(cred)}@`;
+  });
+  return { text: out, count };
+}

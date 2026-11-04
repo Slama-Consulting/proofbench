@@ -10,12 +10,14 @@ const MAX_UNBOUNDED = 3;
  * it forbids backreferences, quantified groups that themselves contain a quantifier or an alternation,
  * and more than a few unbounded quantifiers. The input is also truncated by the caller.
  */
-export function assertSafeRegex(pattern: string): RegExp {
+export function assertSafeRegex(pattern: string, ignoreCase = false): RegExp {
   if (pattern.length > MAX_PATTERN_CHARS) throw new ApkError(`pattern is too long (limit ${MAX_PATTERN_CHARS} characters)`);
   let re: RegExp;
   try {
-    re = new RegExp(pattern, "u");
+    re = new RegExp(pattern, ignoreCase ? "iu" : "u");
   } catch {
+    // JavaScript has no inline flag groups such as (?i): say so instead of a bare "invalid".
+    if (/^\(\?[a-z]+(?:-[a-z]+)?\)/.test(pattern)) throw new ApkError("regular expression rejected: inline flags such as (?i) are not supported; use the ignoreCase parameter");
     throw new ApkError("invalid regular expression");
   }
   const groups: { quant: boolean; alt: boolean }[] = [];

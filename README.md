@@ -55,7 +55,7 @@ Works with **Claude Code**, **GitHub Copilot** (VS Code and CLI), **OpenAI Codex
 
 - **`regression-tracer`** (MCP, 18 tools): version lookup, code location from logs, line origin, change classification, assisted or automatic bisect, merge request and Jira lookup, per-branch fix check, verdict.
 - **`workflow-gate`** (MCP, 8 tools): runs your test, lint and build commands, snapshots the repo state, scans secrets and the Android manifest, probes staging, and closes with a score from 0 to 10 backed by recorded proof.
-- **`apk-inspector`** (MCP, 8 tools): static, read-only Android APK analysis: decoded manifest, exported components, permissions, signing certificates, network security config, DEX strings and classes, secret-shaped strings. Never executes the APK.
+- **`apk-inspector`** (MCP, 10 tools): static, read-only Android APK analysis: decoded manifest, exported components, permissions, signing certificates, network security config, backup rules and other binary XML, release-readiness check, DEX strings and classes, secret-shaped strings, a bounded peek at any entry. Never executes the APK.
 - **`ticket-reader`** (MCP, 2 tools): reads Jira, GitHub, GitLab and Linear tickets with your own tokens and returns them normalised. It has no tool that writes to a tracker.
 - **`docs-lookup`** (MCP, 4 tools): finds the libraries, plugins and tools your project really uses, with exact versions (npm, Gradle and Android, Maven, Python, Go, Rust), and fetches their official documentation for that version, so the agent never codes from stale memory. A built-in alternative to cloud documentation services.
 

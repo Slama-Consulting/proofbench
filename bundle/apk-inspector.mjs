@@ -37097,70 +37097,6 @@ function withApk(path2, fn) {
 // mcp/apk-inspector/src/tools.ts
 import { createHash } from "node:crypto";
 
-// mcp/apk-inspector/src/regexsafe.ts
-var MAX_PATTERN_CHARS = 200;
-var REGEX_INPUT_CHARS = 512;
-var MAX_UNBOUNDED = 3;
-function assertSafeRegex(pattern) {
-  if (pattern.length > MAX_PATTERN_CHARS) throw new ApkError(`pattern is too long (limit ${MAX_PATTERN_CHARS} characters)`);
-  let re;
-  try {
-    re = new RegExp(pattern, "u");
-  } catch {
-    throw new ApkError("invalid regular expression");
-  }
-  const groups = [];
-  let unbounded = 0;
-  let inClass = false;
-  for (let i = 0; i < pattern.length; i++) {
-    const c = pattern[i];
-    if (c === "\\") {
-      const n = pattern[i + 1] ?? "";
-      if (/[1-9]/.test(n) || n === "k" && pattern[i + 2] === "<") throw new ApkError("regular expression rejected: backreferences are not allowed");
-      i++;
-      continue;
-    }
-    if (inClass) {
-      if (c === "]") inClass = false;
-      continue;
-    }
-    if (c === "[") {
-      inClass = true;
-      continue;
-    }
-    if (c === "(") {
-      groups.push({ quant: false, alt: false });
-      continue;
-    }
-    if (c === "|") {
-      const g = groups[groups.length - 1];
-      if (g) g.alt = true;
-      continue;
-    }
-    const isUnbounded = c === "*" || c === "+" || c === "{" && /^\{\d+,\}/.test(pattern.slice(i));
-    if (isUnbounded) {
-      unbounded++;
-      if (unbounded > MAX_UNBOUNDED) throw new ApkError(`regular expression rejected: more than ${MAX_UNBOUNDED} unbounded quantifiers`);
-      const g = groups[groups.length - 1];
-      if (g) g.quant = true;
-      continue;
-    }
-    if (c === ")") {
-      const g = groups.pop();
-      if (!g) continue;
-      const next = pattern[i + 1] ?? "";
-      const quantified = next === "*" || next === "+" || next === "{" && /^\{\d+,\d*\}/.test(pattern.slice(i + 1));
-      if (quantified && (g.quant || g.alt)) throw new ApkError("regular expression rejected: a quantified group containing a quantifier or alternation can cause catastrophic backtracking");
-      const parent = groups[groups.length - 1];
-      if (parent) {
-        parent.quant ||= g.quant;
-        parent.alt ||= g.alt;
-      }
-    }
-  }
-  return re;
-}
-
 // mcp/apk-inspector/src/axml.ts
 var ANDROID_NS = "http://schemas.android.com/apk/res/android";
 var MAX_DEPTH = 128;
@@ -37374,6 +37310,71 @@ function collectXmlStrings(node2, out = []) {
   if (node2.text) out.push(node2.text);
   for (const c of node2.children) collectXmlStrings(c, out);
   return out;
+}
+
+// mcp/apk-inspector/src/regexsafe.ts
+var MAX_PATTERN_CHARS = 200;
+var REGEX_INPUT_CHARS = 512;
+var MAX_UNBOUNDED = 3;
+function assertSafeRegex(pattern, ignoreCase = false) {
+  if (pattern.length > MAX_PATTERN_CHARS) throw new ApkError(`pattern is too long (limit ${MAX_PATTERN_CHARS} characters)`);
+  let re;
+  try {
+    re = new RegExp(pattern, ignoreCase ? "iu" : "u");
+  } catch {
+    if (/^\(\?[a-z]+(?:-[a-z]+)?\)/.test(pattern)) throw new ApkError("regular expression rejected: inline flags such as (?i) are not supported; use the ignoreCase parameter");
+    throw new ApkError("invalid regular expression");
+  }
+  const groups = [];
+  let unbounded = 0;
+  let inClass = false;
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    if (c === "\\") {
+      const n = pattern[i + 1] ?? "";
+      if (/[1-9]/.test(n) || n === "k" && pattern[i + 2] === "<") throw new ApkError("regular expression rejected: backreferences are not allowed");
+      i++;
+      continue;
+    }
+    if (inClass) {
+      if (c === "]") inClass = false;
+      continue;
+    }
+    if (c === "[") {
+      inClass = true;
+      continue;
+    }
+    if (c === "(") {
+      groups.push({ quant: false, alt: false });
+      continue;
+    }
+    if (c === "|") {
+      const g = groups[groups.length - 1];
+      if (g) g.alt = true;
+      continue;
+    }
+    const isUnbounded = c === "*" || c === "+" || c === "{" && /^\{\d+,\}/.test(pattern.slice(i));
+    if (isUnbounded) {
+      unbounded++;
+      if (unbounded > MAX_UNBOUNDED) throw new ApkError(`regular expression rejected: more than ${MAX_UNBOUNDED} unbounded quantifiers`);
+      const g = groups[groups.length - 1];
+      if (g) g.quant = true;
+      continue;
+    }
+    if (c === ")") {
+      const g = groups.pop();
+      if (!g) continue;
+      const next = pattern[i + 1] ?? "";
+      const quantified = next === "*" || next === "+" || next === "{" && /^\{\d+,\d*\}/.test(pattern.slice(i + 1));
+      if (quantified && (g.quant || g.alt)) throw new ApkError("regular expression rejected: a quantified group containing a quantifier or alternation can cause catastrophic backtracking");
+      const parent = groups[groups.length - 1];
+      if (parent) {
+        parent.quant ||= g.quant;
+        parent.alt ||= g.alt;
+      }
+    }
+  }
+  return re;
 }
 
 // mcp/apk-inspector/src/manifest.ts
@@ -37624,223 +37625,6 @@ function interpretManifest(root) {
 }
 function readManifest(apk) {
   return interpretManifest(decodeAxml(apk.readEntry("AndroidManifest.xml")));
-}
-
-// mcp/apk-inspector/src/netconfig.ts
-var NSC_PATH = "res/xml/network_security_config.xml";
-var asBool = (v) => typeof v === "boolean" ? v : v === "true" ? true : v === "false" ? false : void 0;
-function anchors(node2) {
-  if (!node2) return [];
-  return node2.children.filter((c) => c.name === "certificates").map((c) => {
-    const a = { src: String(c.attrs["src"] ?? "") };
-    const op = asBool(c.attrs["overridePins"]);
-    if (op !== void 0) a.overridePins = op;
-    return a;
-  });
-}
-function domainConfig(n, depth = 0) {
-  const out = {
-    domains: n.children.filter((c) => c.name === "domain").map((d) => ({ domain: d.text ?? "", includeSubdomains: asBool(d.attrs["includeSubdomains"]) ?? false })),
-    trustAnchors: anchors(n.children.find((c) => c.name === "trust-anchors")),
-    pinSets: n.children.filter((c) => c.name === "pin-set").map((p) => {
-      const set2 = { pins: p.children.filter((x) => x.name === "pin").map((x) => ({ digestAlgorithm: String(x.attrs["digest"] ?? ""), value: x.text ?? "" })) };
-      if (p.attrs["expiration"] !== void 0) set2.expiration = String(p.attrs["expiration"]);
-      return set2;
-    }),
-    nested: depth < 8 ? n.children.filter((c) => c.name === "domain-config").map((c) => domainConfig(c, depth + 1)) : []
-  };
-  const ct = asBool(n.attrs["cleartextTrafficPermitted"]);
-  if (ct !== void 0) out.cleartextTrafficPermitted = ct;
-  const dbg = n.children.find((c) => c.name === "debug-overrides");
-  if (dbg) out.debugOverrides = { trustAnchors: anchors(dbg.children.find((c) => c.name === "trust-anchors") ?? dbg) };
-  return out;
-}
-function readNetworkConfig(apk) {
-  let manifest = null;
-  let manifestError;
-  try {
-    manifest = readManifest(apk);
-  } catch (e) {
-    manifestError = e instanceof Error ? e.message : String(e);
-  }
-  const result = {
-    manifest: manifest ? { networkSecurityConfig: manifest.application.networkSecurityConfig, usesCleartextTraffic: manifest.application.usesCleartextTraffic, targetSdk: manifest.sdk.target } : { error: manifestError },
-    configPath: NSC_PATH,
-    present: apk.zip.byName.has(NSC_PATH),
-    note: "The manifest only holds a resource reference (resources.arsc is not decoded), so the file is looked up at its conventional path. A renamed or obfuscated resource path will not be found."
-  };
-  if (!apk.zip.byName.has(NSC_PATH)) {
-    result["defaultsWithoutConfig"] = "With no network security config, cleartext HTTP is allowed when targetSdk < 28 and blocked from targetSdk 28 unless android:usesCleartextTraffic is true.";
-    return result;
-  }
-  const root = decodeAxml(apk.readEntry(NSC_PATH));
-  if (root.name !== "network-security-config") {
-    result["error"] = `unexpected root element <${root.name}>`;
-    return result;
-  }
-  const base = root.children.find((c) => c.name === "base-config");
-  if (base) {
-    const bc = { trustAnchors: anchors(base.children.find((c) => c.name === "trust-anchors")) };
-    const ct = asBool(base.attrs["cleartextTrafficPermitted"]);
-    if (ct !== void 0) bc["cleartextTrafficPermitted"] = ct;
-    result["baseConfig"] = bc;
-  }
-  result["domainConfigs"] = root.children.filter((c) => c.name === "domain-config").slice(0, 500).map((c) => domainConfig(c));
-  const dbg = root.children.find((c) => c.name === "debug-overrides");
-  if (dbg) result["debugOverrides"] = { trustAnchors: anchors(dbg.children.find((c) => c.name === "trust-anchors")) };
-  const findings = [];
-  if (base && asBool(base.attrs["cleartextTrafficPermitted"]) === true) findings.push("base-config permits cleartext traffic for every domain.");
-  const userTrust = (a) => a.some((x) => x.src === "user");
-  if (userTrust(anchors(base?.children.find((c) => c.name === "trust-anchors")))) findings.push("base-config trusts user-installed CA certificates.");
-  if (dbg) findings.push("debug-overrides present: only honoured in debuggable builds.");
-  result["auditFlags"] = findings;
-  return result;
-}
-
-// mcp/apk-inspector/src/secrets.ts
-function mask(value) {
-  const keep = Math.max(1, Math.min(4, Math.floor(value.length / 2)));
-  return `${value.slice(0, keep)}\u2026[${value.length}]`;
-}
-var RULES = [
-  { type: "aws-access-key-id", re: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g, confidence: "high" },
-  { type: "google-api-key", re: /\bAIza[0-9A-Za-z_-]{35}\b/g, confidence: "high" },
-  { type: "firebase-database-url", re: /https:\/\/[a-z0-9-]{3,}(?:-default-rtdb)?(?:\.[a-z0-9-]+)?\.firebaseio\.com/g, confidence: "medium" },
-  { type: "gcp-service-account-json", re: /"type"\s*:\s*"service_account"/g, confidence: "high" },
-  { type: "private-key-pem", re: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?: BLOCK)?-----/g, confidence: "high" },
-  { type: "jwt", re: /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, confidence: "medium" },
-  { type: "slack-token", re: /\bxox[abprs]-[A-Za-z0-9-]{10,}/g, confidence: "high" },
-  { type: "stripe-secret-key", re: /\b[sr]k_live_[0-9A-Za-z]{16,}/g, confidence: "high" },
-  { type: "stripe-publishable-key", re: /\bpk_live_[0-9A-Za-z]{16,}/g, confidence: "low" },
-  { type: "github-token", re: /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{50,})/g, confidence: "high" },
-  { type: "twilio-api-key", re: /\bSK[0-9a-f]{32}\b/g, confidence: "medium" },
-  { type: "twilio-account-sid", re: /\bAC[0-9a-f]{32}\b/g, confidence: "low" },
-  { type: "bearer-authorization", re: /Authorization\s*:\s*Bearer\s+([A-Za-z0-9._~+/=-]{16,})/gi, confidence: "medium", group: 1 },
-  { type: "generic-secret-assignment", re: /(?:api[_-]?key|apikey|secret|passw(?:or)?d|token|client[_-]?secret)["']?\s*[:=]\s*["']([^"'\s]{12,})["']/gi, confidence: "low", group: 1 }
-];
-var URL_RE = /\b(https?|wss?):\/\/([^\s/@"'<>\\?#]+@)?(\[[0-9a-fA-F:]+\]|[A-Za-z0-9._-]+)(?::(\d{1,5}))?([^\s"'<>\\)]*)/g;
-var NAMESPACE_HOSTS = /* @__PURE__ */ new Set([
-  "schemas.android.com",
-  "www.w3.org",
-  "xmlpull.org",
-  "www.xmlpull.org",
-  "ns.adobe.com",
-  "xml.org",
-  "www.apache.org",
-  "apache.org",
-  "java.sun.com",
-  "schemas.microsoft.com",
-  "purl.org",
-  "www.opengis.net",
-  "localhost",
-  "example.com",
-  "www.example.com"
-]);
-var SecretScanner = class {
-  findings = [];
-  hosts = /* @__PURE__ */ new Map();
-  truncated = false;
-  seen = /* @__PURE__ */ new Set();
-  scan(text, location, big = false) {
-    if (text.length < 8) return;
-    const cap = big ? LIMITS.maxTextScanBytes : 8192;
-    const maxHits = big ? 500 : 20;
-    const s = text.length > cap ? text.slice(0, cap) : text;
-    for (const rule of RULES) {
-      if (this.findings.length >= LIMITS.maxSecretFindings) {
-        this.truncated = true;
-        break;
-      }
-      rule.re.lastIndex = 0;
-      let m;
-      let guard = 0;
-      while ((m = rule.re.exec(s)) !== null && guard++ < maxHits) {
-        if (m[0].length === 0) rule.re.lastIndex++;
-        const value = m[rule.group ?? 0] ?? m[0];
-        this.add({ type: rule.type, maskedValue: mask(value), location, confidence: rule.confidence }, value);
-      }
-    }
-    if (s.includes("://")) this.scanUrls(s, location, big ? 5e3 : 50);
-  }
-  /** `value` only feeds the de-duplication key; it is never stored in a finding. */
-  add(f, value) {
-    const key = `${f.type}|${f.location}|${value}`;
-    if (this.seen.has(key)) return;
-    if (this.findings.length >= LIMITS.maxSecretFindings) {
-      this.truncated = true;
-      return;
-    }
-    this.seen.add(key);
-    this.findings.push(f);
-  }
-  scanUrls(s, location, maxHits) {
-    URL_RE.lastIndex = 0;
-    let m;
-    let guard = 0;
-    while ((m = URL_RE.exec(s)) !== null && guard++ < maxHits) {
-      const scheme = m[1].toLowerCase();
-      const host = m[3].toLowerCase().replace(/\.$/, "");
-      if (m[2]) {
-        this.add({ type: "url-with-credentials", maskedValue: mask(m[2].slice(0, -1)), location, confidence: "high" }, m[2]);
-      }
-      if (host.length < 3 || !/[a-z0-9]/.test(host)) continue;
-      const path2 = (m[5] ?? "").split(/[?#]/)[0];
-      const shown = `${scheme}://${host}${m[4] ? ":" + m[4] : ""}${path2}`.slice(0, 200);
-      let h = this.hosts.get(host);
-      if (!h) {
-        if (this.hosts.size >= 5e3) {
-          this.truncated = true;
-          continue;
-        }
-        h = { host, count: 0, cleartext: false, likelyNamespace: NAMESPACE_HOSTS.has(host), samples: [] };
-        this.hosts.set(host, h);
-      }
-      h.count++;
-      if ((scheme === "http" || scheme === "ws") && !h.likelyNamespace) h.cleartext = true;
-      if (h.samples.length < 5 && !h.samples.includes(shown)) h.samples.push(shown);
-    }
-  }
-};
-var TEXT_DIRS = /^(assets\/|res\/raw\/|res\/xml\/)/;
-var MAX_TEXT_ENTRIES = 3e3;
-var MAX_TEXT_TOTAL = 64 * 1024 * 1024;
-function scanTextEntries(apk, scanner) {
-  let scanned = 0;
-  let skipped = 0;
-  let total = 0;
-  for (const e of apk.zip.entries) {
-    if (!TEXT_DIRS.test(e.name) || e.name.endsWith("/")) continue;
-    apk.deadline.check();
-    if (e.uncompressedSize === 0 || e.uncompressedSize > LIMITS.maxTextScanBytes || scanned >= MAX_TEXT_ENTRIES || total + e.uncompressedSize > MAX_TEXT_TOTAL) {
-      skipped++;
-      continue;
-    }
-    let buf;
-    try {
-      buf = apk.zip.read(e, LIMITS.maxTextScanBytes);
-    } catch {
-      skipped++;
-      continue;
-    }
-    total += buf.length;
-    if (isAxml(buf)) {
-      try {
-        for (const s of collectXmlStrings(decodeAxml(buf))) scanner.scan(s, e.name);
-        scanned++;
-      } catch {
-        skipped++;
-      }
-      continue;
-    }
-    const head = buf.subarray(0, Math.min(buf.length, 4096));
-    if (head.includes(0)) {
-      skipped++;
-      continue;
-    }
-    scanner.scan(buf.toString("utf8"), e.name, true);
-    scanned++;
-  }
-  return { scanned, skipped };
 }
 
 // mcp/apk-inspector/src/signature.ts
@@ -38157,6 +37941,283 @@ function signingSchemes(zip) {
   return { v1, v2: ids.includes(SIG_BLOCK_IDS.v2), v3: ids.includes(SIG_BLOCK_IDS.v3), v31: ids.includes(SIG_BLOCK_IDS.v31) };
 }
 
+// mcp/apk-inspector/src/release.ts
+var LARGE_ASSET_BYTES = 5 * 1024 * 1024;
+var VERSION_HINT = /(snapshot|debug|test|mock|dirty|wip)/i;
+var NOTE = "Heuristic from static facts only: a release build can still ship debug code, and a debug-looking build can be intended. It is not a security verdict.";
+function releaseReadiness(apk, i) {
+  const blockers = [];
+  const reviews = [];
+  const m = i.manifest;
+  if (m) {
+    if (m.application.debuggable) blockers.push("android:debuggable is true: the app can be attached to and inspected on any device.");
+    const testOnly = m.application.flags["testOnly"];
+    if (testOnly === true || testOnly === "true") blockers.push("android:testOnly is true: this is a test build.");
+    const testComponents = m.components.filter((c) => c.exported && c.name.startsWith("androidx.test.")).map((c) => c.name);
+    if (testComponents.length) blockers.push(`${testComponents.length} androidx.test component(s) exported: ${testComponents.slice(0, 5).join(", ")}.`);
+    if (m.application.usesCleartextTraffic === true) reviews.push("usesCleartextTraffic is true: plain HTTP is allowed.");
+    const v = m.versionName === null ? "" : String(m.versionName);
+    if (VERSION_HINT.test(v)) reviews.push(`versionName "${v.slice(0, 80)}" looks like a non-release build (snapshot, debug, test, mock, dirty or wip).`);
+  } else {
+    reviews.push(`The manifest could not be read${i.manifestError ? ` (${i.manifestError})` : ""}: debuggable, testOnly and exported test components were not checked.`);
+  }
+  if (i.testClasses > 0) blockers.push(`${i.testClasses} androidx.test class(es) are packaged: the test framework is in the APK.`);
+  if (i.jacocoClasses > 0) blockers.push(`${i.jacocoClasses} org.jacoco class(es) are packaged: coverage instrumentation is in the APK.`);
+  if (i.debugToolingClasses.length) reviews.push(`Debug tooling packaged: ${i.debugToolingClasses.join(", ")}.`);
+  const schemes = signingSchemes(apk.zip);
+  if (!schemes.v1 && !schemes.v2 && !schemes.v3 && !schemes.v31) {
+    blockers.push("The APK is not signed (no v1, v2, v3 or v3.1 signature).");
+  } else {
+    try {
+      const report = readSignatures(apk.zip);
+      const certs2 = [report.v1, report.v2, report.v3, report.v31].flatMap((s) => s.signers.flatMap((x) => x.certificates));
+      if (certs2.some((c) => c.isDebugCertificate)) blockers.push("The APK is signed with the Android debug certificate.");
+      const expired = certs2.find((c) => c.expired);
+      if (expired) blockers.push(`The signing certificate expired on ${expired.validTo.slice(0, 10)}.`);
+    } catch {
+      reviews.push("The signing certificates could not be parsed.");
+    }
+  }
+  const large = apk.zip.entries.filter((e) => !e.name.endsWith("/") && !/^(classes\d*\.dex|resources\.arsc)$/.test(e.name) && e.uncompressedSize >= LARGE_ASSET_BYTES).sort((a, b) => b.uncompressedSize - a.uncompressedSize);
+  for (const e of large.slice(0, 5)) reviews.push(`${e.name} is ${(e.uncompressedSize / 1024 / 1024).toFixed(1)} MB: confirm it is meant to ship.`);
+  if (i.obfuscationVerdict === "unlikely") reviews.push("No obfuscation or shrinking detected: class names are readable.");
+  return { verdict: blockers.length ? "not-release-ready" : "looks-like-release", blockers, reviews, note: NOTE };
+}
+
+// mcp/apk-inspector/src/netconfig.ts
+var NSC_PATH = "res/xml/network_security_config.xml";
+var asBool = (v) => typeof v === "boolean" ? v : v === "true" ? true : v === "false" ? false : void 0;
+function anchors(node2) {
+  if (!node2) return [];
+  return node2.children.filter((c) => c.name === "certificates").map((c) => {
+    const a = { src: String(c.attrs["src"] ?? "") };
+    const op = asBool(c.attrs["overridePins"]);
+    if (op !== void 0) a.overridePins = op;
+    return a;
+  });
+}
+function domainConfig(n, depth = 0) {
+  const out = {
+    domains: n.children.filter((c) => c.name === "domain").map((d) => ({ domain: d.text ?? "", includeSubdomains: asBool(d.attrs["includeSubdomains"]) ?? false })),
+    trustAnchors: anchors(n.children.find((c) => c.name === "trust-anchors")),
+    pinSets: n.children.filter((c) => c.name === "pin-set").map((p) => {
+      const set2 = { pins: p.children.filter((x) => x.name === "pin").map((x) => ({ digestAlgorithm: String(x.attrs["digest"] ?? ""), value: x.text ?? "" })) };
+      if (p.attrs["expiration"] !== void 0) set2.expiration = String(p.attrs["expiration"]);
+      return set2;
+    }),
+    nested: depth < 8 ? n.children.filter((c) => c.name === "domain-config").map((c) => domainConfig(c, depth + 1)) : []
+  };
+  const ct = asBool(n.attrs["cleartextTrafficPermitted"]);
+  if (ct !== void 0) out.cleartextTrafficPermitted = ct;
+  const dbg = n.children.find((c) => c.name === "debug-overrides");
+  if (dbg) out.debugOverrides = { trustAnchors: anchors(dbg.children.find((c) => c.name === "trust-anchors") ?? dbg) };
+  return out;
+}
+function readNetworkConfig(apk) {
+  let manifest = null;
+  let manifestError;
+  try {
+    manifest = readManifest(apk);
+  } catch (e) {
+    manifestError = e instanceof Error ? e.message : String(e);
+  }
+  const result = {
+    manifest: manifest ? { networkSecurityConfig: manifest.application.networkSecurityConfig, usesCleartextTraffic: manifest.application.usesCleartextTraffic, targetSdk: manifest.sdk.target } : { error: manifestError },
+    configPath: NSC_PATH,
+    present: apk.zip.byName.has(NSC_PATH),
+    note: "The manifest only holds a resource reference (resources.arsc is not decoded), so the file is looked up at its conventional path. A renamed or obfuscated resource path will not be found."
+  };
+  if (!apk.zip.byName.has(NSC_PATH)) {
+    result["defaultsWithoutConfig"] = "With no network security config, cleartext HTTP is allowed when targetSdk < 28 and blocked from targetSdk 28 unless android:usesCleartextTraffic is true.";
+    return result;
+  }
+  const root = decodeAxml(apk.readEntry(NSC_PATH));
+  if (root.name !== "network-security-config") {
+    result["error"] = `unexpected root element <${root.name}>`;
+    return result;
+  }
+  const base = root.children.find((c) => c.name === "base-config");
+  if (base) {
+    const bc = { trustAnchors: anchors(base.children.find((c) => c.name === "trust-anchors")) };
+    const ct = asBool(base.attrs["cleartextTrafficPermitted"]);
+    if (ct !== void 0) bc["cleartextTrafficPermitted"] = ct;
+    result["baseConfig"] = bc;
+  }
+  result["domainConfigs"] = root.children.filter((c) => c.name === "domain-config").slice(0, 500).map((c) => domainConfig(c));
+  const dbg = root.children.find((c) => c.name === "debug-overrides");
+  if (dbg) result["debugOverrides"] = { trustAnchors: anchors(dbg.children.find((c) => c.name === "trust-anchors")) };
+  const findings = [];
+  if (base && asBool(base.attrs["cleartextTrafficPermitted"]) === true) findings.push("base-config permits cleartext traffic for every domain.");
+  const userTrust = (a) => a.some((x) => x.src === "user");
+  if (userTrust(anchors(base?.children.find((c) => c.name === "trust-anchors")))) findings.push("base-config trusts user-installed CA certificates.");
+  if (dbg) findings.push("debug-overrides present: only honoured in debuggable builds.");
+  result["auditFlags"] = findings;
+  return result;
+}
+
+// mcp/apk-inspector/src/secrets.ts
+function mask(value) {
+  const keep = Math.max(1, Math.min(4, Math.floor(value.length / 2)));
+  return `${value.slice(0, keep)}\u2026[${value.length}]`;
+}
+var RULES = [
+  { type: "aws-access-key-id", re: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g, confidence: "high" },
+  { type: "google-api-key", re: /\bAIza[0-9A-Za-z_-]{35}\b/g, confidence: "high" },
+  { type: "firebase-database-url", re: /https:\/\/[a-z0-9-]{3,}(?:-default-rtdb)?(?:\.[a-z0-9-]+)?\.firebaseio\.com/g, confidence: "medium" },
+  { type: "gcp-service-account-json", re: /"type"\s*:\s*"service_account"/g, confidence: "high" },
+  { type: "private-key-pem", re: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?: BLOCK)?-----/g, confidence: "high" },
+  { type: "jwt", re: /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, confidence: "medium" },
+  { type: "slack-token", re: /\bxox[abprs]-[A-Za-z0-9-]{10,}/g, confidence: "high" },
+  { type: "stripe-secret-key", re: /\b[sr]k_live_[0-9A-Za-z]{16,}/g, confidence: "high" },
+  { type: "stripe-publishable-key", re: /\bpk_live_[0-9A-Za-z]{16,}/g, confidence: "low" },
+  { type: "github-token", re: /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{50,})/g, confidence: "high" },
+  { type: "twilio-api-key", re: /\bSK[0-9a-f]{32}\b/g, confidence: "medium" },
+  { type: "twilio-account-sid", re: /\bAC[0-9a-f]{32}\b/g, confidence: "low" },
+  { type: "bearer-authorization", re: /Authorization\s*:\s*Bearer\s+([A-Za-z0-9._~+/=-]{16,})/gi, confidence: "medium", group: 1 },
+  { type: "generic-secret-assignment", re: /(?:api[_-]?key|apikey|secret|passw(?:or)?d|token|client[_-]?secret)["']?\s*[:=]\s*["']([^"'\s]{12,})["']/gi, confidence: "low", group: 1 }
+];
+var URL_RE = /\b(https?|wss?):\/\/([^\s/@"'<>\\?#]+@)?(\[[0-9a-fA-F:]+\]|[A-Za-z0-9._-]+)(?::(\d{1,5}))?([^\s"'<>\\)]*)/g;
+var NAMESPACE_HOSTS = /* @__PURE__ */ new Set([
+  "schemas.android.com",
+  "www.w3.org",
+  "xmlpull.org",
+  "www.xmlpull.org",
+  "ns.adobe.com",
+  "xml.org",
+  "www.apache.org",
+  "apache.org",
+  "java.sun.com",
+  "schemas.microsoft.com",
+  "purl.org",
+  "www.opengis.net",
+  "localhost",
+  "example.com",
+  "www.example.com"
+]);
+var SecretScanner = class {
+  findings = [];
+  hosts = /* @__PURE__ */ new Map();
+  truncated = false;
+  seen = /* @__PURE__ */ new Set();
+  scan(text, location, big = false) {
+    if (text.length < 8) return;
+    const cap = big ? LIMITS.maxTextScanBytes : 8192;
+    const maxHits = big ? 500 : 20;
+    const s = text.length > cap ? text.slice(0, cap) : text;
+    for (const rule of RULES) {
+      if (this.findings.length >= LIMITS.maxSecretFindings) {
+        this.truncated = true;
+        break;
+      }
+      rule.re.lastIndex = 0;
+      let m;
+      let guard = 0;
+      while ((m = rule.re.exec(s)) !== null && guard++ < maxHits) {
+        if (m[0].length === 0) rule.re.lastIndex++;
+        const value = m[rule.group ?? 0] ?? m[0];
+        this.add({ type: rule.type, maskedValue: mask(value), location, confidence: rule.confidence }, value);
+      }
+    }
+    if (s.includes("://")) this.scanUrls(s, location, big ? 5e3 : 50);
+  }
+  /** `value` only feeds the de-duplication key; it is never stored in a finding. */
+  add(f, value) {
+    const key = `${f.type}|${f.location}|${value}`;
+    if (this.seen.has(key)) return;
+    if (this.findings.length >= LIMITS.maxSecretFindings) {
+      this.truncated = true;
+      return;
+    }
+    this.seen.add(key);
+    this.findings.push(f);
+  }
+  scanUrls(s, location, maxHits) {
+    URL_RE.lastIndex = 0;
+    let m;
+    let guard = 0;
+    while ((m = URL_RE.exec(s)) !== null && guard++ < maxHits) {
+      const scheme = m[1].toLowerCase();
+      const host = m[3].toLowerCase().replace(/\.$/, "");
+      if (m[2]) {
+        this.add({ type: "url-with-credentials", maskedValue: mask(m[2].slice(0, -1)), location, confidence: "high" }, m[2]);
+      }
+      if (host.length < 3 || !/[a-z0-9]/.test(host)) continue;
+      const path2 = (m[5] ?? "").split(/[?#]/)[0];
+      const shown = `${scheme}://${host}${m[4] ? ":" + m[4] : ""}${path2}`.slice(0, 200);
+      let h = this.hosts.get(host);
+      if (!h) {
+        if (this.hosts.size >= 5e3) {
+          this.truncated = true;
+          continue;
+        }
+        h = { host, count: 0, cleartext: false, likelyNamespace: NAMESPACE_HOSTS.has(host), samples: [] };
+        this.hosts.set(host, h);
+      }
+      h.count++;
+      if ((scheme === "http" || scheme === "ws") && !h.likelyNamespace) h.cleartext = true;
+      if (h.samples.length < 5 && !h.samples.includes(shown)) h.samples.push(shown);
+    }
+  }
+};
+var TEXT_DIRS = /^(assets\/|res\/raw\/|res\/xml\/)/;
+var MAX_TEXT_ENTRIES = 3e3;
+var MAX_TEXT_TOTAL = 64 * 1024 * 1024;
+function scanTextEntries(apk, scanner) {
+  let scanned = 0;
+  let skipped = 0;
+  let total = 0;
+  for (const e of apk.zip.entries) {
+    if (!TEXT_DIRS.test(e.name) || e.name.endsWith("/")) continue;
+    apk.deadline.check();
+    if (e.uncompressedSize === 0 || e.uncompressedSize > LIMITS.maxTextScanBytes || scanned >= MAX_TEXT_ENTRIES || total + e.uncompressedSize > MAX_TEXT_TOTAL) {
+      skipped++;
+      continue;
+    }
+    let buf;
+    try {
+      buf = apk.zip.read(e, LIMITS.maxTextScanBytes);
+    } catch {
+      skipped++;
+      continue;
+    }
+    total += buf.length;
+    if (isAxml(buf)) {
+      try {
+        for (const s of collectXmlStrings(decodeAxml(buf))) scanner.scan(s, e.name);
+        scanned++;
+      } catch {
+        skipped++;
+      }
+      continue;
+    }
+    const head = buf.subarray(0, Math.min(buf.length, 4096));
+    if (head.includes(0)) {
+      skipped++;
+      continue;
+    }
+    scanner.scan(buf.toString("utf8"), e.name, true);
+    scanned++;
+  }
+  return { scanned, skipped };
+}
+function redactSecrets(text) {
+  let count = 0;
+  let out = text;
+  for (const rule of RULES) {
+    out = out.replace(new RegExp(rule.re.source, rule.re.flags), (...args) => {
+      const whole = args[0];
+      count++;
+      const secret = rule.group === void 0 ? void 0 : args[rule.group];
+      return secret === void 0 ? mask(whole) : whole.replace(secret, () => mask(secret));
+    });
+  }
+  out = out.replace(/\b(https?|wss?):\/\/([^\s/@"'<>\\?#]+)@/g, (_m, scheme, cred) => {
+    count++;
+    return `${scheme}://${mask(cred)}@`;
+  });
+  return { text: out, count };
+}
+
 // mcp/apk-inspector/src/tools.ts
 function sha256OfFile(apk) {
   const h = createHash("sha256");
@@ -38168,13 +38229,23 @@ function sha256OfFile(apk) {
   return h.digest("hex");
 }
 var errText = (e) => e instanceof Error ? e.message : String(e);
+var DEBUG_TOOLING = [
+  ["leakcanary.", "LeakCanary"],
+  ["com.squareup.leakcanary.", "LeakCanary"],
+  ["com.facebook.stetho.", "Stetho"],
+  ["com.facebook.flipper.", "Flipper"],
+  ["com.chuckerteam.chucker.", "Chucker"]
+];
 function apkOverview(apk) {
   const out = {};
   out["fileSize"] = apk.source.size;
   out["sha256"] = sha256OfFile(apk);
   out["entryCount"] = apk.zip.entries.length;
+  let manifest;
+  let manifestError;
   try {
     const m = readManifest(apk);
+    manifest = m;
     out["package"] = m.package;
     out["versionName"] = m.versionName;
     out["versionCode"] = m.versionCode;
@@ -38189,7 +38260,8 @@ function apkOverview(apk) {
     const count = (k) => m.components.filter((c) => c.kind === k).length;
     out["componentCounts"] = { activities: count("activity") + count("activity-alias"), services: count("service"), receivers: count("receiver"), providers: count("provider"), exported: m.components.filter((c) => c.exported).length };
   } catch (e) {
-    out["manifestError"] = errText(e);
+    manifestError = errText(e);
+    out["manifestError"] = manifestError;
   }
   out["networkSecurityConfigPresent"] = apk.zip.byName.has(NSC_PATH);
   const dexInfo = apk.dexEntries().map((e) => ({ name: e.name, size: e.uncompressedSize }));
@@ -38203,15 +38275,26 @@ function apkOverview(apk) {
   out["signingSchemes"] = signingSchemes(apk.zip);
   const classNames = [];
   let classCount = 0;
+  let testClasses = 0;
+  let jacocoClasses = 0;
+  const tooling = /* @__PURE__ */ new Set();
   const { errors } = apk.forEachDex((dex) => {
     dex.forEachClass((c) => {
       classCount++;
       if (classNames.length < 2e5) classNames.push(c.name);
+      if (c.name.startsWith("androidx.test.")) testClasses++;
+      else if (c.name.startsWith("org.jacoco.")) jacocoClasses++;
+      else {
+        const t = DEBUG_TOOLING.find(([prefix]) => c.name.startsWith(prefix));
+        if (t) tooling.add(t[1]);
+      }
     });
   });
   out["classCount"] = classCount;
-  out["obfuscation"] = obfuscationHint(classNames);
+  const obfuscation = obfuscationHint(classNames);
+  out["obfuscation"] = obfuscation;
   if (errors.length) out["dexErrors"] = errors;
+  out["releaseReadiness"] = releaseReadiness(apk, { manifest, manifestError, testClasses, jacocoClasses, debugToolingClasses: [...tooling].sort(), obfuscationVerdict: obfuscation.verdict });
   return out;
 }
 function apkManifest(apk) {
@@ -38258,8 +38341,11 @@ function apkStrings(apk, o) {
   if (o.pattern !== void 0 && o.pattern !== "") {
     if (o.pattern.length > MAX_PATTERN_CHARS) throw new ApkError(`pattern is too long (limit ${MAX_PATTERN_CHARS} characters)`);
     if (o.regex) {
-      const re = assertSafeRegex(o.pattern);
+      const re = assertSafeRegex(o.pattern, o.ignoreCase === true);
       test = (s) => re.test(s.length > REGEX_INPUT_CHARS ? s.slice(0, REGEX_INPUT_CHARS) : s);
+    } else if (o.ignoreCase) {
+      const needle = o.pattern.toLowerCase();
+      test = (s) => s.toLowerCase().includes(needle);
     } else {
       const needle = o.pattern;
       test = (s) => s.includes(needle);
@@ -38332,6 +38418,110 @@ function apkFindSecrets(apk) {
 function apkNetworkConfig(apk) {
   return readNetworkConfig(apk);
 }
+var MAX_XML_NODES = 5e3;
+function cutText(v) {
+  return typeof v === "string" && v.length > LIMITS.maxStringChars ? v.slice(0, LIMITS.maxStringChars) : v;
+}
+function copyTree(n, b) {
+  b.nodes++;
+  const out = { name: n.name, attrs: {}, children: [] };
+  for (const [k, v] of Object.entries(n.attrs)) out.attrs[k] = cutText(v);
+  if (n.text !== void 0) out.text = String(cutText(n.text));
+  for (const c of n.children) {
+    if (b.nodes >= MAX_XML_NODES) {
+      b.truncated = true;
+      break;
+    }
+    out.children.push(copyTree(c, b));
+  }
+  return out;
+}
+var rulePairs = (n, tag) => n.children.filter((c) => c.name === tag).map((c) => {
+  const r = {};
+  if (c.attrs["domain"] !== void 0) r.domain = String(c.attrs["domain"]);
+  if (c.attrs["path"] !== void 0) r.path = String(c.attrs["path"]);
+  return r;
+});
+var BACKUP_NOTE = "Rules are listed as written, not evaluated. See the Android documentation for how include and exclude combine.";
+function backupSummary(root) {
+  if (root.name === "full-backup-content") return { kind: "full-backup-content", includes: rulePairs(root, "include"), excludes: rulePairs(root, "exclude"), note: BACKUP_NOTE };
+  if (root.name !== "data-extraction-rules") return void 0;
+  const out = { kind: "data-extraction-rules", note: BACKUP_NOTE };
+  const cloud = root.children.find((c) => c.name === "cloud-backup");
+  if (cloud) {
+    const section = { includes: rulePairs(cloud, "include"), excludes: rulePairs(cloud, "exclude") };
+    const d = cloud.attrs["disableIfNoEncryptionCapabilities"];
+    if (d !== void 0) section["disableIfNoEncryptionCapabilities"] = d === true || d === "true";
+    out["cloudBackup"] = section;
+  }
+  const transfer = root.children.find((c) => c.name === "device-transfer");
+  if (transfer) out["deviceTransfer"] = { includes: rulePairs(transfer, "include"), excludes: rulePairs(transfer, "exclude") };
+  return out;
+}
+function apkXml(apk, entry) {
+  const buf = apk.readEntry(entry);
+  if (!isAxml(buf)) throw new ApkError(`entry is not binary XML (use apk_asset_peek to look at it): ${entry}`);
+  let root;
+  try {
+    root = decodeAxml(buf);
+  } catch (e) {
+    throw e instanceof ApkError ? e : new ApkError(`entry is not a valid binary XML document: ${entry}`);
+  }
+  const budget = { nodes: 0, truncated: false };
+  const tree = copyTree(root, budget);
+  const backupRules = backupSummary(root);
+  return { entry, root: root.name, nodeCount: budget.nodes, truncated: budget.truncated, tree, ...backupRules ? { backupRules } : {} };
+}
+var startsWith = (b, bytes) => b.length >= bytes.length && bytes.every((v, i) => b[i] === v);
+function utf8Text(b) {
+  if (b.includes(0)) return null;
+  for (let cut = 0; cut <= 3 && cut < b.length; cut++) {
+    try {
+      const t = new TextDecoder("utf-8", { fatal: true }).decode(b.subarray(0, b.length - cut));
+      let control = 0;
+      for (let i = 0; i < t.length; i++) {
+        const c = t.charCodeAt(i);
+        if (c < 32 && c !== 9 && c !== 10 && c !== 13) control++;
+      }
+      return control / Math.max(1, t.length) < 0.05 ? t : null;
+    } catch {
+    }
+  }
+  return null;
+}
+function sniff(b) {
+  if (b.length === 0) return { kind: "empty", text: null };
+  if (b.toString("latin1", 0, 4) === "dex\n") return { kind: "dex", text: null };
+  if (startsWith(b, [127, 69, 76, 70])) return { kind: "elf", text: null };
+  if (startsWith(b, [80, 75, 3, 4])) return { kind: "zip", text: null };
+  if (startsWith(b, [137, 80, 78, 71])) return { kind: "png", text: null };
+  if (startsWith(b, [255, 216, 255])) return { kind: "jpeg", text: null };
+  if (b.toString("latin1", 0, 4) === "GIF8") return { kind: "gif", text: null };
+  if (b.toString("latin1", 0, 4) === "%PDF") return { kind: "pdf", text: null };
+  if (isAxml(b)) return { kind: "binary-xml", text: null };
+  const text = utf8Text(b);
+  if (text === null) return { kind: "binary", text: null };
+  const first = text.trimStart()[0];
+  return { kind: first === "{" || first === "[" ? "json" : first === "<" ? "xml" : "text", text };
+}
+function apkAssetPeek(apk, entry, bytes) {
+  const e = apk.zip.get(entry);
+  if (!e || entry.endsWith("/")) throw new ApkError(`entry not found: ${entry}`);
+  const base = { entry, size: e.uncompressedSize, compressedSize: e.compressedSize, method: e.method === 0 ? "stored" : e.method === 8 ? "deflate" : `method-${e.method}` };
+  if (e.uncompressedSize === 0) return { ...base, kind: "empty", returnedBytes: 0 };
+  const head = apk.zip.peek(e, bytes);
+  if (head.length === 0) throw new ApkError(`entry could not be read (encrypted or unsupported compression): ${entry}`);
+  const { kind, text } = sniff(head);
+  const out = { ...base, kind, returnedBytes: head.length, truncated: e.uncompressedSize > head.length };
+  if (text !== null) {
+    const red = redactSecrets(text);
+    out["preview"] = red.text;
+    out["redactedSecrets"] = red.count;
+  } else {
+    out["hexPreview"] = head.toString("hex").replace(/(..)/g, "$1 ").trim();
+  }
+  return out;
+}
 
 // mcp/apk-inspector/src/server.ts
 var READS = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
@@ -38374,15 +38564,16 @@ function createServer() {
   );
   tool(
     "apk_strings",
-    "Strings from the DEX string pools of all classesN.dex, filtered by substring or (regex: true) a regular expression of at most 200 characters. Patterns prone to catastrophic backtracking are refused; regexes see the first 512 characters of each string.",
+    "Strings from the DEX string pools of all classesN.dex, filtered by substring or (regex: true) a regular expression of at most 200 characters. ignoreCase makes either match case-insensitive (inline flags such as (?i) are not supported). Patterns prone to catastrophic backtracking are refused; regexes see the first 512 characters of each string.",
     external_exports.strictObject({
       path,
       pattern: external_exports.string().max(200).optional(),
       regex: external_exports.boolean().default(false),
+      ignoreCase: external_exports.boolean().default(false),
       minLength: external_exports.number().int().min(1).max(1e4).default(4),
       limit: external_exports.number().int().min(1).max(1e3).default(100)
     }),
-    ({ path: p, pattern, regex, minLength, limit }) => withApk(p, (apk) => apkStrings(apk, { pattern, regex, minLength, limit }))
+    ({ path: p, pattern, regex, ignoreCase, minLength, limit }) => withApk(p, (apk) => apkStrings(apk, { pattern, regex, ignoreCase, minLength, limit }))
   );
   tool(
     "apk_classes",
@@ -38407,6 +38598,18 @@ function createServer() {
     "Decodes res/xml/network_security_config.xml if present: base-config, trust anchors, domain-configs (cleartext, pin-sets with expiration), debug-overrides; plus the manifest's networkSecurityConfig reference and usesCleartextTraffic.",
     external_exports.strictObject({ path }),
     ({ path: p }) => withApk(p, apkNetworkConfig)
+  );
+  tool(
+    "apk_xml",
+    "Decodes one binary XML entry of the APK (for example res/xml/backup_rules.xml or res/xml/data_extraction_rules.xml) into a tree, truncated to 5000 elements. Backup and data-extraction rule files also get a summary of their include/exclude rules. resources.arsc is not decoded.",
+    external_exports.strictObject({ path, entry: external_exports.string().min(1).max(512).describe("Entry name inside the APK, as listed by apk_entries") }),
+    ({ path: p, entry }) => withApk(p, (apk) => apkXml(apk, entry))
+  );
+  tool(
+    "apk_asset_peek",
+    "Looks at the first bytes of one APK entry without extracting it: size, kind detected from magic numbers, and either a text preview (secret-shaped values are masked) or a hex preview. Reads at most 4096 bytes.",
+    external_exports.strictObject({ path, entry: external_exports.string().min(1).max(512).describe("Entry name inside the APK, as listed by apk_entries"), bytes: external_exports.number().int().min(1).max(4096).default(256) }),
+    ({ path: p, entry, bytes }) => withApk(p, (apk) => apkAssetPeek(apk, entry, bytes))
   );
   return server;
 }

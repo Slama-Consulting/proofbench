@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- `apk-inspector`: `apk_strings` takes `ignoreCase`, and a refused regex now says why (inline flags such as `(?i)` are not supported).
+- `apk-inspector`: new `apk_xml` tool decodes any binary XML entry and summarises backup and data-extraction rules.
+- `apk-inspector`: new `apk_asset_peek` tool shows the first bytes of an entry (kind, text or hex preview, secrets masked).
+- `apk-inspector`: `apk_overview` returns a `releaseReadiness` block (blockers and reviews) so a debug or test build is recognised at once.
+
 ## 0.2.0
 
 - Seven skills with an automatic router (`using-proofbench`): `regression-trace`, `fix-bug`, `build-feature`, `clean-up`, `security-audit`, `analyze-apk`, `read-ticket`.

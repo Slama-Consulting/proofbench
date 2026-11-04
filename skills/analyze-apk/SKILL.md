@@ -36,12 +36,12 @@ With no answer, cover 1, 2 and 5: that pays off most for the least risk.
 ## Sequence
 
 1. **The file**: the absolute path to a local `.apk`, never a guessed URL. A downloaded APK goes in a folder of its own.
-2. **`apk_overview`**: package, versions, SDK levels, flags, ABIs, signing schemes, obfuscation hint. This decides what to look at next.
+2. **`apk_overview`**: package, versions, SDK levels, flags, ABIs, signing schemes, obfuscation hint. This decides what to look at next. Read `releaseReadiness` first: if the verdict is `not-release-ready`, say that the file is a debug or test build, list its blockers, and warn that findings such as `debuggable` or exported test activities say nothing about the release; ask the user for the release APK.
 3. **`apk_manifest`**: permissions (note the dangerous ones), exported components and why they are exported (`exportedSource`), intent filters and deep links, content providers and their authorities.
 4. **`apk_network_config`**: cleartext policy, trust anchors, certificate pinning, debug overrides.
 5. **`apk_signature`**: schemes present, certificate subject, validity, fingerprint, debug certificate. The server does not verify signatures: say that in your report.
 6. **`apk_find_secrets`**: secret-shaped strings and the hosts and URLs the app contains, cleartext ones flagged. Every value is masked by the server: keep it masked.
-7. **Follow a lead**: `apk_strings` and `apk_classes` with a pattern, to move from a host or a keyword to the classes that mention it. `apk_classes` also lists package prefixes, which show the embedded SDKs. `apk_entries` shows unusual files (a second app, native code, executables in `assets/`).
+7. **Follow a lead**: `apk_strings` and `apk_classes` with a pattern, to move from a host or a keyword to the classes that mention it. `apk_strings` takes `ignoreCase`; inline regex flags such as `(?i)` are not supported. `apk_xml` decodes any binary XML entry, for example the backup or data-extraction rules that decide what `allowBackup` really exposes. `apk_asset_peek` shows the first bytes of one entry (a large JSON asset, for instance) with secret-shaped values masked. `apk_classes` also lists package prefixes, which show the embedded SDKs. `apk_entries` shows unusual files (a second app, native code, executables in `assets/`).
 8. **Report**: see below.
 
 The tools advertised by the server take precedence over this list: if a name differs, trust the tool and say so.

@@ -6,7 +6,7 @@ import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { withApk } from "./apk.js";
 import { ApkError } from "./errors.js";
-import { apkClasses, apkEntries, apkFindSecrets, apkManifest, apkNetworkConfig, apkOverview, apkSignature, apkStrings } from "./tools.js";
+import { apkAssetPeek, apkClasses, apkEntries, apkFindSecrets, apkManifest, apkNetworkConfig, apkOverview, apkSignature, apkStrings, apkXml } from "./tools.js";
 
 /** Every tool only reads the analysed file: nothing is executed, written or sent over a network. */
 const READS: ToolAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
@@ -62,15 +62,16 @@ export function createServer(): McpServer {
 
   tool(
     "apk_strings",
-    "Strings from the DEX string pools of all classesN.dex, filtered by substring or (regex: true) a regular expression of at most 200 characters. Patterns prone to catastrophic backtracking are refused; regexes see the first 512 characters of each string.",
+    "Strings from the DEX string pools of all classesN.dex, filtered by substring or (regex: true) a regular expression of at most 200 characters. ignoreCase makes either match case-insensitive (inline flags such as (?i) are not supported). Patterns prone to catastrophic backtracking are refused; regexes see the first 512 characters of each string.",
     z.strictObject({
       path,
       pattern: z.string().max(200).optional(),
       regex: z.boolean().default(false),
+      ignoreCase: z.boolean().default(false),
       minLength: z.number().int().min(1).max(10_000).default(4),
       limit: z.number().int().min(1).max(1000).default(100),
     }),
-    ({ path: p, pattern, regex, minLength, limit }) => withApk(p, (apk) => apkStrings(apk, { pattern, regex, minLength, limit })),
+    ({ path: p, pattern, regex, ignoreCase, minLength, limit }) => withApk(p, (apk) => apkStrings(apk, { pattern, regex, ignoreCase, minLength, limit })),
   );
 
   tool(
@@ -99,6 +100,20 @@ export function createServer(): McpServer {
     "Decodes res/xml/network_security_config.xml if present: base-config, trust anchors, domain-configs (cleartext, pin-sets with expiration), debug-overrides; plus the manifest's networkSecurityConfig reference and usesCleartextTraffic.",
     z.strictObject({ path }),
     ({ path: p }) => withApk(p, apkNetworkConfig),
+  );
+
+  tool(
+    "apk_xml",
+    "Decodes one binary XML entry of the APK (for example res/xml/backup_rules.xml or res/xml/data_extraction_rules.xml) into a tree, truncated to 5000 elements. Backup and data-extraction rule files also get a summary of their include/exclude rules. resources.arsc is not decoded.",
+    z.strictObject({ path, entry: z.string().min(1).max(512).describe("Entry name inside the APK, as listed by apk_entries") }),
+    ({ path: p, entry }) => withApk(p, (apk) => apkXml(apk, entry)),
+  );
+
+  tool(
+    "apk_asset_peek",
+    "Looks at the first bytes of one APK entry without extracting it: size, kind detected from magic numbers, and either a text preview (secret-shaped values are masked) or a hex preview. Reads at most 4096 bytes.",
+    z.strictObject({ path, entry: z.string().min(1).max(512).describe("Entry name inside the APK, as listed by apk_entries"), bytes: z.number().int().min(1).max(4096).default(256) }),
+    ({ path: p, entry, bytes }) => withApk(p, (apk) => apkAssetPeek(apk, entry, bytes)),
   );
 
   return server;

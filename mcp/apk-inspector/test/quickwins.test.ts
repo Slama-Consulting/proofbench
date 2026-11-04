@@ -172,6 +172,15 @@ describe("apk_asset_peek", () => {
     expect(r.redactedSecrets).toBeGreaterThanOrEqual(1);
   });
 
+  it("masks credentials embedded in URLs and bearer tokens in the preview", async () => {
+    const body = "see https://admin:supersecretpw@example.com/x and Authorization: Bearer abcdefghijklmnop1234567890";
+    const path = buildApk({ extra: [{ name: "assets/notes.txt", data: body }] });
+    const r = (await c.call("apk_asset_peek", { path, entry: "assets/notes.txt", bytes: 512 })).data;
+    expect(r.preview).not.toContain("supersecretpw");
+    expect(r.preview).not.toContain("abcdefghijklmnop1234567890");
+    expect(r.redactedSecrets).toBeGreaterThanOrEqual(2);
+  });
+
   it("clamps the number of bytes and validates the inputs", async () => {
     const path = buildApk({ extra: [{ name: "assets/long.txt", data: "a".repeat(10_000), method: "store" }] });
     const r = (await c.call("apk_asset_peek", { path, entry: "assets/long.txt", bytes: 4096 })).data;
@@ -229,6 +238,12 @@ describe("apk_overview: releaseReadiness", () => {
     const r = (await c.call("apk_overview", { path })).data.releaseReadiness;
     expect(r.verdict).toBe("looks-like-release");
     expect(r.blockers).toEqual([]);
+  });
+
+  it("does not flag the resource table as a stray large file", async () => {
+    const path = buildApk({ manifestSpec: { debuggable: false }, signing: "v2", extra: [{ name: "resources.arsc", data: Buffer.alloc(6 * 1024 * 1024), method: "store" }] });
+    const r = (await c.call("apk_overview", { path })).data.releaseReadiness;
+    expect(r.reviews.join("\n")).not.toMatch(/resources\.arsc/);
   });
 
   it("flags an unsigned APK and a debug certificate", async () => {
