@@ -13,9 +13,9 @@ afterAll(async () => {
 });
 
 describe("server surface", () => {
-  it("lists exactly the 8 read-only tools and says results are untrusted", async () => {
+  it("lists exactly the 10 read-only tools and says results are untrusted", async () => {
     const { tools } = await c.client.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(["apk_classes", "apk_entries", "apk_find_secrets", "apk_manifest", "apk_network_config", "apk_overview", "apk_signature", "apk_strings"]);
+    expect(tools.map((t) => t.name).sort()).toEqual(["apk_asset_peek", "apk_classes", "apk_entries", "apk_find_secrets", "apk_manifest", "apk_network_config", "apk_overview", "apk_signature", "apk_strings", "apk_xml"]);
     for (const t of tools) {
       expect(t.annotations?.readOnlyHint).toBe(true);
       expect(t.annotations?.openWorldHint).toBe(false);
