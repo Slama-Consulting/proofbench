@@ -5,6 +5,8 @@
 ## Docs
 - [README](README.md): what it is, install for each assistant, FAQ, safety model
 - [Skills](skills/README.md): the seven skills and the router
+- [APK analysis guide](docs/apk-analysis.md): the 14 apk-inspector tools, bytecode and caller-check analysis, optional jadx bridge, limits
+- [apk-inspector](mcp/apk-inspector/README.md): MCP server for static APK analysis
 - [regression-tracer](mcp/regression-tracer/README.md): MCP server for regression investigations
 - [workflow-gate](mcp/workflow-gate/README.md): MCP server for proof-backed workflows
 - [Vision](docs/VISION.md): promise, target, risks

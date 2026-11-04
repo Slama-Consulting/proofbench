@@ -10,7 +10,7 @@ Eight skills in the open Agent Skills format (`SKILL.md`). The `using-proofbench
 | [`build-feature/`](build-feature/SKILL.md) | New feature, from requirements to proofs. | [`workflow-gate`](../mcp/workflow-gate/README.md) |
 | [`clean-up/`](clean-up/SKILL.md) | Cleanup without changing behaviour. | [`workflow-gate`](../mcp/workflow-gate/README.md) |
 | [`security-audit/`](security-audit/SKILL.md) | Security check of an application. | [`workflow-gate`](../mcp/workflow-gate/README.md) |
-| [`analyze-apk/`](analyze-apk/SKILL.md) | Android APK static analysis. | [`apk-inspector`](../mcp/apk-inspector/README.md) |
+| [`analyze-apk/`](analyze-apk/SKILL.md) | Android APK static analysis, including release-readiness and code-level questions such as "does this exported service check its caller?" ([guide](../docs/apk-analysis.md)). | [`apk-inspector`](../mcp/apk-inspector/README.md) |
 | [`read-ticket/`](read-ticket/SKILL.md) | Reading a Jira, GitHub, GitLab or Linear ticket. | [`ticket-reader`](../mcp/ticket-reader/README.md) |
 
 Installation: see the [main README](../README.md).

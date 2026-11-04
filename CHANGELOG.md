@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Docs: new guide `docs/apk-analysis.md`, and README, `mcp/` and `skills/` indexes updated for the new tools.
+- `analyze-apk` and the router now list the code-level questions (release build, caller checks, who calls a method) among their trigger phrases.
+
 ## 0.3.0 - 2026-11-04
 
 - `apk-inspector`: a built-in Dalvik bytecode reader (no external tool) and four tools on top of it: `apk_methods`, `apk_calls`, `apk_xrefs` and `apk_entrypoint_checks` (caller-validation APIs reachable from the entry points of exported components, reported as observed facts and unknowns).
@@ -8,6 +13,7 @@
 - `apk-inspector`: new `apk_xml` tool decodes any binary XML entry and summarises backup and data-extraction rules.
 - `apk-inspector`: new `apk_asset_peek` tool shows the first bytes of an entry (kind, text or hex preview, secrets masked).
 - `apk-inspector`: `apk_overview` returns a `releaseReadiness` block (blockers and reviews) so a debug or test build is recognised at once.
+- Two tests that only make sense on Windows (or on a case-insensitive filesystem) no longer run elsewhere.
 
 ## 0.2.0
 

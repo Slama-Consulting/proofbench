@@ -1,8 +1,10 @@
 # apk-inspector
 
-A self-contained MCP server for **static, read-only analysis of Android `.apk` files**. It has no dependency on any external reverse-engineering tool: ZIP, Android binary XML, DEX and certificate parsing are implemented with Node built-ins only (`node:zlib`, `node:crypto`, `node:fs`). The only runtime packages are the MCP SDK and `zod`.
+A self-contained MCP server for **static, read-only analysis of Android `.apk` files**. It has no dependency on any external reverse-engineering tool (the jadx bridge is optional and off by default): ZIP, Android binary XML, DEX, Dalvik bytecode and certificate parsing are implemented with Node built-ins only (`node:zlib`, `node:crypto`, `node:fs`). The only runtime packages are the MCP SDK and `zod`.
 
 It is used by the `analyze-apk` skill, which calls these tools to answer questions such as "what does this APK request, expose and talk to?" without installing anything.
+
+Since 0.3.0 it also reads code: what a method calls, who calls what, and which caller-validation APIs are reachable from the entry points of exported components. The full guide, with a worked example, is [`docs/apk-analysis.md`](../../docs/apk-analysis.md).
 
 ## Tools
 
@@ -31,6 +33,14 @@ Notes on specific tools:
 - **`apk_strings` regexes**: JavaScript has no inline flags, so `(?i)` is refused with a message pointing to `ignoreCase`; patterns are limited to 200 characters; patterns prone to catastrophic backtracking (nested quantifiers, quantified alternations, backreferences, more than three unbounded quantifiers) are refused; each string is tested on its first 512 characters.
 - **`apk_find_secrets`** never returns a whole secret: values are masked as the first few characters, an ellipsis and the length (for example `AKIA…[20]`). URLs are returned without query string or fragment, and credentials embedded in a URL are reported only as a masked finding. A match is a lead, not proof that a secret is live.
 - **`apk_signature`** parses certificates but performs **no cryptographic verification** (`verified: false`, with a `note`). It does not prove the APK is intact or who signed it.
+
+## A typical sequence
+
+1. `apk_overview`: package, flags, signing, and `releaseReadiness` (is this a debug or test build?).
+2. `apk_manifest`, `apk_network_config`, `apk_signature`: what the app requests, exposes and trusts. `apk_xml` for the backup rules.
+3. `apk_find_secrets`, `apk_strings`, `apk_entries`, `apk_asset_peek`: secret-shaped strings, hosts, and what the big assets are.
+4. `apk_entrypoint_checks` for the exported components, then `apk_calls` (with `depth`), `apk_xrefs` and `apk_methods` to follow a lead into the code.
+5. `apk_decompile`, only if enabled, for the one class you need to read as Java.
 
 ## Result format
 
@@ -102,4 +112,4 @@ npm test            # vitest run
 npm run typecheck   # tsc over src and test
 ```
 
-The tests are self-contained: no real APK is needed or stored. Helpers under `test/helpers/` build tiny synthetic fixtures at test time (a ZIP writer, an Android binary XML writer, a minimal DEX writer, and self-signed certificates wrapped in PKCS#7 and in v2/v3 signing blocks). Hostile cases cover truncated and malformed ZIPs, bad offsets, zip bombs, empty and non-ZIP files, huge declared string counts, over-long and catastrophic regexes, and missing files.
+The tests are self-contained: no real APK is needed or stored (172 tests in 7 files; the jadx tests use a fake `jadx` shell script and are skipped on Windows). Helpers under `test/helpers/` build tiny synthetic fixtures at test time (a ZIP writer, an Android binary XML writer, a minimal DEX writer, a DEX builder with prototypes, class data, code items and a small instruction assembler, and self-signed certificates wrapped in PKCS#7 and in v2/v3 signing blocks). Hostile cases cover truncated and malformed ZIPs, bad offsets, zip bombs, empty and non-ZIP files, huge declared string counts, over-long and catastrophic regexes, and missing files.

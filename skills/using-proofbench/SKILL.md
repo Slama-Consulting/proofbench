@@ -16,7 +16,7 @@ Proofbench bundles seven skills. When a request matches one, you invoke it **bef
 | "add", "build", "implement", "new feature", "create a screen" | `build-feature` | `workflow-gate` |
 | "clean up", "dead code", "remove what is unused", "reduce warnings", "refactor without changing behaviour" | `clean-up` | `workflow-gate` |
 | "secure the app", "security audit", "find vulnerabilities", "any secrets in the repo?", "test the API on staging" | `security-audit` | `workflow-gate` |
-| "analyze this APK", "reverse engineering", "find something in this app", "decompile", a `.apk`, `.aab` or `.xapk` file | `analyze-apk` | `apk-inspector` |
+| "analyze this APK", "reverse engineering", "find something in this app", "decompile", "is this a release build", "does this service check its caller", "who calls this method", a `.apk`, `.aab` or `.xapk` file | `analyze-apk` | `apk-inspector` |
 | "look at this ticket", "what is PROJ-123 about", "read this issue", a Jira key or a GitHub, GitLab or Linear URL | `read-ticket` | `ticket-reader` |
 
 The request can be in any language: route on its meaning.

@@ -12,7 +12,7 @@ Say *"analyze this bug"*, *"build this feature"*, *"clean this up"*, *"secure th
 [![Node 20+](https://img.shields.io/badge/node-%E2%89%A520-339933.svg)](https://nodejs.org)
 [![MCP servers](https://img.shields.io/badge/MCP-5%20servers-blue.svg)](mcp/)
 [![Agent Skills](https://img.shields.io/badge/Agent%20Skills-7%20skills-purple.svg)](skills/)
-[![Tests](https://img.shields.io/badge/tests-1%2C510%20passing-brightgreen.svg)](mcp/)
+[![Tests](https://img.shields.io/badge/tests-1%2C569%20passing-brightgreen.svg)](mcp/)
 
 [Install](#install) · [Features](#features) · [How it works](#how-it-works) · [FAQ](#faq) · [Safety](#safety-model)
 
@@ -44,8 +44,14 @@ Works with **Claude Code**, **GitHub Copilot** (VS Code and CLI), **OpenAI Codex
 | "add this feature", "implement this" | `build-feature` | Requirements, edge cases, plan, test first, code, then proofs: tests, lint, build. |
 | "clean up this module", "remove dead code" | `clean-up` | Cleanup that must not change behaviour. Lint warnings may only go down. |
 | "secure the app", "any secrets in the repo?" | `security-audit` | Secret scan over the whole git history, Android manifest audit, authorised API probing on staging. |
-| "analyze this APK", "reverse engineering" | `analyze-apk` | Manifest, signature, classes, strings, references, through the built-in `apk-inspector` MCP server (static, read-only, nothing is executed). Findings split into observed, deduced, unknown. |
+| "analyze this APK", "does this service check who calls it?", "is this a release build?" | `analyze-apk` | Manifest, signature, release-readiness, backup rules, classes, strings, and since 0.3.0 the bytecode itself (methods, calls, who calls what, caller checks on the entry points of exported components), through the built-in `apk-inspector` MCP server (static, read-only, nothing is executed). Findings split into observed, deduced, unknown. |
 | "look at this ticket", "what is PROJ-123 about?" | `read-ticket` | Reads the ticket through the built-in `ticket-reader` MCP server (Jira, GitHub, GitLab, Linear), summarises it, lists what is missing, proposes the next skill. Read-only unless you say otherwise. |
+
+### New in 0.3.0: reading what an APK does
+
+`apk-inspector` grew from 8 to 14 tools, plus an optional one. It now tells you whether a file looks like a release build, decodes backup rules and any binary XML, peeks into big assets with secrets masked, searches strings case-insensitively, and **reads the Dalvik bytecode with a reader of its own**: methods, calls, cross-references, and the caller-validation APIs (`getCallingUid`, `checkCallingPermission`, `getPackagesForUid`...) reachable from the entry points of every exported component. An optional bridge to a local [jadx](https://github.com/skylot/jadx) reads one class as Java. Everything stays static and read-only, and the answers say what is observed and what is unknown, never "safe" or "vulnerable".
+
+Full guide, with a worked example and the limits: **[docs/apk-analysis.md](docs/apk-analysis.md)**. Version history: [CHANGELOG.md](CHANGELOG.md).
 
 ## How it works
 
@@ -143,6 +149,8 @@ add a dark mode toggle to the settings screen
 clean up the networking module without changing behaviour
 audit this repo for leaked secrets before the release
 analyze ~/Downloads/app-release.apk and find the backend endpoints
+is ~/Downloads/app-debug.apk a release build?
+does the exported media service in this APK check who connects to it?
 look at PROJ-482 and tell me what it asks for
 ```
 
@@ -152,7 +160,16 @@ look at PROJ-482 and tell me what it asks for
 Ask "analyze this bug" or "which commit broke this?". The `regression-trace` skill drives the `regression-tracer` MCP server: it locates the code from your logs, lists candidate commits (`git blame` is only a hint), then runs an assisted `git bisect` where you confirm good or bad states. The verdict cites its evidence and refuses to conclude without proof.
 
 ### Can Claude Code, Copilot or Codex reverse engineer an APK?
-Yes, through the `analyze-apk` skill and the built-in `apk-inspector` MCP server: manifest and permissions, exported components, signing certificates, network security config, DEX strings and classes, secret-shaped strings. It is static and read-only: it reads the bytecode (methods, calls, who calls what, caller checks on exported entry points) but does not decompile to Java unless you enable the optional jadx bridge, and it never runs the APK. It asks for your authorisation context first and refuses DRM, licence or authentication bypass. It does not install or run the APK without your approval.
+Yes, through the `analyze-apk` skill and the built-in `apk-inspector` MCP server: manifest and permissions, exported components, signing certificates, network security config, DEX strings and classes, secret-shaped strings. It is static and read-only: it reads the bytecode (methods, calls, who calls what, caller checks on exported entry points) but does not decompile to Java unless you enable the optional jadx bridge (see the [APK guide](docs/apk-analysis.md)), and it never runs the APK. It asks for your authorisation context first and refuses DRM, licence or authentication bypass. It does not install or run the APK without your approval.
+
+### Can it tell whether an exported Android component checks its caller?
+Partly, and it says which part. `apk_entrypoint_checks` finds the entry methods of each exported service, provider, receiver and activity, follows the calls inside the app, and lists the caller-validation APIs it can reach (UID, permission, package and signature lookups) with the call path, the package-name strings used, and which parameters the entry method reads. It reports observed facts and unknowns: it cannot tell whether the result of a check decides anything, and it never calls a component safe or vulnerable. See the [worked example](docs/apk-analysis.md#a-worked-example-shortened-names-changed).
+
+### How do I read Java instead of bytecode?
+Install [jadx](https://github.com/skylot/jadx) and enable the optional `apk_decompile` tool with `APK_INSPECTOR_JADX` (an absolute path, or `auto`). It decompiles one class per call in a private temporary directory that is deleted afterwards, and your assistant asks before using it. Setup and safety notes: [docs/apk-analysis.md](docs/apk-analysis.md#reading-java-with-jadx-optional).
+
+### How do I update the plugin?
+On Claude Code: `claude plugin marketplace update proofbench-marketplace`, then `claude plugin update proofbench@proofbench-marketplace`, then restart. The version number is bumped on every release, so the update is detected normally. With `scripts/setup.mjs`, pull the repository and run the same command again.
 
 ### Can my AI coding agent read Jira, GitHub or GitLab tickets?
 Yes, with the `read-ticket` skill and the built-in `ticket-reader` MCP server (Jira, GitHub, GitLab or Linear, using your own tokens). It summarises the ticket, separates what the ticket says from what it deduces, lists what is missing and proposes the next step. It has no tool that writes to a tracker.
@@ -177,15 +194,18 @@ Most collections are prompts. Proofbench's differentiator is that the **score is
 - **Nothing is written outside your repo and `~/.proofbench`**, and nothing is pushed or merged without your explicit word. No tool can write to a tracker.
 - **Network access is narrow:** staging probes only to hosts you allow-listed in `~/.proofbench/config.json` (HTTPS, no `prod` in the name, one request per second).
 - **APK analysis has a legal gate.** `analyze-apk` asks for your authorisation context and refuses DRM, licence, anti-cheat or authentication bypass.
+- **The APK is never run.** The bytecode tools only read it. The optional jadx bridge is off unless you set `APK_INSPECTOR_JADX`, starts only jadx, in a private temporary directory that is deleted afterwards, and is not advertised as read-only so your assistant asks first.
 
 ## Status and limits
 
-- Verified: **1,510 automated tests** pass (`npm test`), every bundle starts and answers `initialize` and `tools/list` over stdio, and the installer was run against throwaway directories for Copilot, Codex, Cursor and Gemini: idempotent, non-destructive, fully reversible.
+- Verified: **1,569 automated tests** pass on Linux (`npm test`; a few more only run on Windows or macOS), every bundle starts and answers `initialize` and `tools/list` over stdio, and the installer was run against throwaway directories for Copilot, Codex, Cursor and Gemini: idempotent, non-destructive, fully reversible.
 - Not yet verified in a live session on every assistant. Skill activation is the model's decision, helped by the router and the always-on block.
 - Install paths follow each vendor's documentation as of November 2026; they move. If one has changed, `scripts/setup.mjs` is the single place to fix.
 - The Cursor and Gemini paths read skills from your checkout, so keep the clone where it is.
 - The Jira browser login has only run against a simulated Playwright.
 - A secret scan recognises known shapes. It does not prove there are none.
+- The jadx bridge is covered by tests with a fake `jadx` only; try it on your own jadx before relying on it.
+- The bytecode tools do not follow reflection or code loaded at runtime and do not evaluate control flow, so a reachable (or missing) caller check is a lead, not a verdict.
 
 ## Repository layout
 
@@ -196,7 +216,7 @@ mcp/        TypeScript sources and tests of the five servers
 hooks/      Claude Code SessionStart hook (loads the router)
 scripts/    setup.mjs (installer), bundle.mjs, smoke.mjs, make-assets.mjs
 assets/     diagrams and the social preview image
-docs/       vision and design specs
+docs/       vision, design specs and the APK analysis guide (docs/apk-analysis.md)
 ```
 
 Contributing: see [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md). Changes: [CHANGELOG.md](CHANGELOG.md).

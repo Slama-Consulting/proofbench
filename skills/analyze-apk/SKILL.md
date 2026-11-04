@@ -1,6 +1,6 @@
 ---
 name: analyze-apk
-description: Use when the user wants to reverse-engineer, audit or find something in an Android APK - hidden endpoints, API keys, permissions, exported components, trackers, native libraries, signing, obfuscation, network security. Triggers include "analyze this APK", "reverse engineer this app", "find something in this app", "what does this app do", "is this APK safe", "extract the API endpoints", "which permissions does this APK use".
+description: Use when the user wants to reverse-engineer, audit or find something in an Android APK - hidden endpoints, API keys, permissions, exported components, trackers, native libraries, signing, obfuscation, network security. Triggers include "analyze this APK", "reverse engineer this app", "find something in this app", "what does this app do", "is this APK safe", "extract the API endpoints", "which permissions does this APK use", "is this a release build", "does this exported service check who calls it", "who calls this method in the APK", "what does this method do".
 ---
 
 # Analyze an APK
