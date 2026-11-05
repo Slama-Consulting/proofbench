@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 - 2026-11-05
 
 - `ticket-reader`: Jira is now read with a browser login (a Chromium window where you log in yourself, SSO and MFA included), on REST v2, like `regression-tracer`. The token modes are removed: `JIRA_EMAIL`, `JIRA_API_TOKEN` and `JIRA_PAT` are no longer read, and `JIRA_BASE_URL` alone configures Jira. New optional `JIRA_LOGIN_TIMEOUT_S`; `playwright` is an optional dependency.
 - `regression-tracer`: the Jira API token path is removed; Jira lookups always use the browser login.

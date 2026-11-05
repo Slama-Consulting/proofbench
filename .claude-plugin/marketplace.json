@@ -6,7 +6,7 @@
     {
       "name": "proofbench",
       "description": "Analyse bugs and regressions, fix, build, clean up, secure, reverse-engineer APKs and read tickets, with proof-backed scores. Skills trigger automatically.",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "source": "./",
       "author": { "name": "Slama Consulting" }
     }

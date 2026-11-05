@@ -1,7 +1,7 @@
 {
   "name": "proofbench",
   "description": "Skills and MCP servers for AI coding agents: analyse bugs and regressions, fix, build, clean up, secure, reverse-engineer APKs, read tickets. Skills trigger automatically.",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "author": { "name": "Slama Consulting", "url": "https://github.com/Slama-Consulting" },
   "homepage": "https://github.com/Slama-Consulting/proofbench",
   "repository": "https://github.com/Slama-Consulting/proofbench",

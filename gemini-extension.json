@@ -1,6 +1,6 @@
 {
   "name": "proofbench",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Skills and MCP servers for AI coding agents: bug analysis, regression tracing, fixes, features, cleanup, security, APK reverse engineering, tickets.",
   "contextFileName": "GEMINI.md",
   "mcpServers": {
