@@ -2,7 +2,7 @@ import { git } from "./git.js";
 import { GitLabClient, glabToken, type MrInfo } from "./gitlab.js";
 import type { ClientOptions, FetchFn } from "./http.js";
 import { addEvidence, type Investigation, type RepoRef } from "./investigation.js";
-import { JiraBrowserClient, JiraClient } from "./jira.js";
+import { JiraBrowserClient } from "./jira.js";
 import { browserSessionProvider } from "./jira-browser.js";
 import { loginTimeoutMs, type SessionProvider } from "./jira-session.js";
 import { readConfig, remoteHost, remoteProjectPath, remoteUrl } from "./repo.js";
@@ -151,18 +151,13 @@ export async function linkChange(inv: Investigation, repoId: string, sha: string
   const jiraInfo = new Map<string, { summary: string; status: string }>();
   if (tickets.length > 0) {
     const base = env.JIRA_BASE_URL;
-    const email = env.JIRA_EMAIL;
-    const token = env.JIRA_API_TOKEN;
     // The Jira host comes from JIRA_BASE_URL and nothing else: not the repository, the config, a commit or a ticket.
-    const browserMode = !!base && !token?.trim();
-    if (!base || (!browserMode && (!email || !token))) {
-      misses.push("Jira not configured (JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN): links not verified");
+    if (!base) {
+      misses.push("Jira not configured (JIRA_BASE_URL): links not verified");
     } else {
-      let jira: JiraClient | JiraBrowserClient | null = null;
+      let jira: JiraBrowserClient | null = null;
       try {
-        jira = browserMode
-          ? new JiraBrowserClient(base, deps.sessionProvider ?? browserSessionProvider, loginTimeoutMs(env), fetchFn, deps.clientOptions)
-          : new JiraClient(base, email as string, token as string, fetchFn, deps.clientOptions);
+        jira = new JiraBrowserClient(base, deps.sessionProvider ?? browserSessionProvider, loginTimeoutMs(env), fetchFn, deps.clientOptions);
       } catch (e) {
         misses.push(`Jira ignored: ${(e as Error).message}`);
       }

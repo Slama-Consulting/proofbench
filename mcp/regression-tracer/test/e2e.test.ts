@@ -82,7 +82,7 @@ describe("complete investigation", () => {
         }]);
       }
       if (u.includes("/repository/commits/")) return json([]);
-      if (u.includes("/rest/api/3/issue/PROJ-42")) return json({ fields: { summary: "Cart discount", status: { name: "Done" } } });
+      if (u.includes("/rest/api/2/issue/PROJ-42")) return json({ fields: { summary: "Cart discount", status: { name: "Done" } } });
       return json({}, 404);
     }) as typeof fetch;
 
@@ -94,9 +94,8 @@ describe("complete investigation", () => {
       env: {
         GITLAB_TOKEN: "fake-gitlab-token",
         JIRA_BASE_URL: "https://acme.atlassian.net",
-        JIRA_EMAIL: "user@example.com",
-        JIRA_API_TOKEN: "fake-jira-token",
       },
+      sessionProvider: async () => ({ ok: true, cookies: [{ name: "JSESSIONID", value: "fake-jira-session", domain: "acme.atlassian.net" }] }),
     });
   });
 
@@ -234,7 +233,7 @@ describe("complete investigation", () => {
     expect(await g(repo, "status", "--porcelain")).toBe("");
     expect(await g(repo, "rev-parse", "HEAD")).toBe(shas[7]);
     expect(existsSync(snapshotPath)).toBe(false);
-    expect(markdown + JSON.stringify(report)).not.toMatch(/fake-(gitlab|jira)-token/);
+    expect(markdown + JSON.stringify(report)).not.toMatch(/fake-(gitlab-token|jira-session)/);
     expect(calledUrls.some((u) => u.includes("gitlab.com/api/v4"))).toBe(true);
   });
 });

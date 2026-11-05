@@ -12,9 +12,9 @@ If its tools are not available, say so and stop: the install command is in the r
 ## Connect
 
 1. **`ticket_providers`** first. It lists which trackers are configured (never a secret) and, for each missing one, the exact environment variables to set. If the user's tracker is not configured, show them that list and stop. They set the variables themselves; you never ask for a token in the chat and never type one.
-2. **`ticket_read`** with the URL or key the user gave. Pass `provider` only when a bare key is ambiguous.
+2. **`ticket_read`** with the URL or key the user gave. Pass `provider` only when a bare key is ambiguous. For Jira with no saved session, the call waits while a Chromium window is open: tell the user to log in there, and never type or read anything in that window.
 
-Supported: Jira (Cloud with API token, Server and Data Center with a personal access token), GitHub issues and pull requests, GitLab issues and merge requests, Linear issues. Anything else is not supported: say so.
+Supported: Jira (read with a browser login: the first read opens a Chromium window where the user logs in themselves, no token), GitHub issues and pull requests, GitLab issues and merge requests, Linear issues. Anything else is not supported: say so.
 
 If the server cannot read the ticket (not configured, no permission, not found, rate limited), read the `misses` field, report it as it is, and offer the user to **paste the ticket text**: you can analyze it without a connection. Never invent the content of a ticket you could not read. The server refuses a ticket whose host is not the configured one: do not look for a way around that.
 

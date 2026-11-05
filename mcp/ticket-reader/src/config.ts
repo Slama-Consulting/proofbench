@@ -1,4 +1,5 @@
 import { isLocalHostname } from "./http.js";
+import { loginTimeoutMs } from "./jira-session.js";
 import type { Provider } from "./types.js";
 
 /** Configuration comes from environment variables only: never from a repository, a ticket or a ref. */
@@ -13,10 +14,8 @@ export interface JiraConfig {
   host: string;
   /** Context path (`""` or `/jira`). */
   basePath: string;
-  mode: "cloud" | "pat";
-  authHeader: string;
-  apiVersion: 2 | 3;
-  secrets: string[];
+  /** How long a first browser login may take. */
+  loginTimeoutMs: number;
 }
 
 export interface GithubConfig {
@@ -74,21 +73,9 @@ export function jiraConfig(env: Env, allowHttpLocalhost = false): Cfg<JiraConfig
       }
     }
   }
-  const email = val(env, "JIRA_EMAIL");
-  const apiToken = val(env, "JIRA_API_TOKEN");
-  const pat = val(env, "JIRA_PAT");
-  let mode: "cloud" | "pat" | undefined;
-  if (email && apiToken) mode = "cloud";
-  else if (pat) mode = "pat";
-  else problems.push("Jira credentials are not set: JIRA_EMAIL + JIRA_API_TOKEN (Jira Cloud) or JIRA_PAT (Data Center / Server)");
-  if (problems.length > 0 || !base || !mode) return { ok: false, problems };
+  if (problems.length > 0 || !base) return { ok: false, problems };
   const basePath = base.pathname.replace(/\/+$/, "");
-  const authHeader = mode === "cloud" ? `Basic ${Buffer.from(`${email}:${apiToken}`).toString("base64")}` : `Bearer ${pat}`;
-  const secrets = [apiToken, pat, authHeader, mode === "cloud" ? authHeader.slice(6) : undefined].filter((s): s is string => s !== undefined);
-  return {
-    ok: true,
-    value: { baseUrl: `${base.protocol}//${base.host}${basePath}`, host: base.host, basePath, mode, authHeader, apiVersion: mode === "cloud" ? 3 : 2, secrets },
-  };
+  return { ok: true, value: { baseUrl: `${base.protocol}//${base.host}${basePath}`, host: base.host, basePath, loginTimeoutMs: loginTimeoutMs(env) } };
 }
 
 export function githubConfig(env: Env): GithubConfig {
@@ -126,13 +113,10 @@ export function linearConfig(env: Env): Cfg<LinearConfig> {
 /** Every secret value in the environment, for redaction. */
 export function secretsOf(env: Env): string[] {
   const out: string[] = [];
-  for (const name of ["JIRA_API_TOKEN", "JIRA_PAT", "GITHUB_TOKEN", "GITLAB_TOKEN", "LINEAR_API_KEY"]) {
+  for (const name of ["GITHUB_TOKEN", "GITLAB_TOKEN", "LINEAR_API_KEY"]) {
     const v = val(env, name);
     if (v) out.push(v);
   }
-  const email = val(env, "JIRA_EMAIL");
-  const token = val(env, "JIRA_API_TOKEN");
-  if (email && token) out.push(Buffer.from(`${email}:${token}`).toString("base64"));
   return out;
 }
 
@@ -155,12 +139,13 @@ export function providerStatuses(env: Env, allowHttpLocalhost = false): Provider
   const jira = jiraConfig(env, allowHttpLocalhost);
   out.push(
     jira.ok
-      ? { provider: "jira", configured: true, details: { host: jira.value.host, auth: jira.value.mode === "cloud" ? "api token (Jira Cloud, REST v3)" : "personal access token (Data Center / Server, REST v2)" } }
+      ? { provider: "jira", configured: true, details: { host: jira.value.host, auth: "browser session (SSO login in a Chromium window, no token)" }, optionalEnv: ["JIRA_LOGIN_TIMEOUT_S"] }
       : {
           provider: "jira",
           configured: false,
           details: {},
-          setEnv: ["JIRA_BASE_URL", "JIRA_EMAIL + JIRA_API_TOKEN (Jira Cloud) or JIRA_PAT (Data Center / Server)"],
+          setEnv: ["JIRA_BASE_URL"],
+          optionalEnv: ["JIRA_LOGIN_TIMEOUT_S"],
           problems: jira.problems,
         },
   );

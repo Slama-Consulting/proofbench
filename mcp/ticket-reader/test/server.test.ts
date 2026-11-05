@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createServer } from "../src/server.js";
-import { fakeFetch, GITHUB_ENV, GITLAB_ENV, JIRA_CLOUD, LINEAR_ENV } from "./helpers/fake.js";
+import { fakeFetch, GITHUB_ENV, GITLAB_ENV, JIRA_ENV, LINEAR_ENV, fakeSession, SESSION_VALUE } from "./helpers/fake.js";
 import { connect } from "./helpers/mcp.js";
 
-const ALL_ENV = { ...JIRA_CLOUD, ...GITHUB_ENV, ...GITLAB_ENV, ...LINEAR_ENV };
-const SECRETS = ["jira-secret-token", "ghp_secret_token_value", "glpat-secret-token-value", "lin_api_secret_key", Buffer.from("dev@example.com:jira-secret-token").toString("base64")];
+const ALL_ENV = { ...JIRA_ENV, ...GITHUB_ENV, ...GITLAB_ENV, ...LINEAR_ENV };
+const SECRETS = [SESSION_VALUE, "ghp_secret_token_value", "glpat-secret-token-value", "lin_api_secret_key"];
 
 describe("server", () => {
   it("lists exactly two read-only tools and instructs the client to treat text as data", async () => {
@@ -44,7 +44,8 @@ describe("server", () => {
     expect(r.meta).toEqual({ untrusted: true });
     const by = Object.fromEntries(r.data.providers.map((p: { provider: string }) => [p.provider, p]));
     expect(by.jira).toMatchObject({ configured: false });
-    expect(by.jira.setEnv.join(" ")).toMatch(/JIRA_BASE_URL.*JIRA_EMAIL \+ JIRA_API_TOKEN.*JIRA_PAT/);
+    expect(by.jira.setEnv).toEqual(["JIRA_BASE_URL"]);
+    expect(JSON.stringify(by.jira)).not.toMatch(/TOKEN|PAT|EMAIL/);
     expect(by.github).toMatchObject({ configured: true, details: { authenticated: false }, optionalEnv: ["GITHUB_TOKEN"] });
     expect(by.gitlab).toMatchObject({ configured: false, setEnv: ["GITLAB_TOKEN"], optionalEnv: ["GITLAB_HOST"] });
     expect(by.linear).toMatchObject({ configured: false, setEnv: ["LINEAR_API_KEY"] });
@@ -61,15 +62,24 @@ describe("server", () => {
     expect(by.gitlab).toMatchObject({ configured: true, details: { host: "gitlab.example.com" } });
     expect(by.linear.configured).toBe(true);
     for (const s of SECRETS) expect(r.text).not.toContain(s);
-    expect(r.text).not.toContain("dev@example.com");
     await c.close();
   });
 
-  it("ticket_providers: a Data Center PAT is reported as such", async () => {
-    const c = await connect({ env: { JIRA_BASE_URL: "https://jira.example.com", JIRA_PAT: "pat-secret-value" } });
+  it("ticket_providers: Jira needs only its URL and is reported as a browser session", async () => {
+    const c = await connect({ env: JIRA_ENV });
     const r = await c.call("ticket_providers");
-    expect(r.data.providers[0].details.auth).toMatch(/personal access token/);
-    expect(r.text).not.toContain("pat-secret-value");
+    expect(r.data.providers[0]).toMatchObject({ provider: "jira", configured: true, details: { host: "jira.example.com" } });
+    expect(r.data.providers[0].details.auth).toMatch(/browser session/);
+    await c.close();
+  });
+
+  it("ticket_read masks the Jira session cookie even when a request error quotes it", async () => {
+    const f = fakeFetch([["https://jira.example.com/", new Error(`socket closed for ${SESSION_VALUE}`)]]);
+    const c = await connect({ env: JIRA_ENV, fetchFn: f.fetchFn, sessionProvider: fakeSession() });
+    const r = await c.call("ticket_read", { ref: "PROJ-1" });
+    expect(r.isError).toBe(true);
+    expect(r.text).toContain("***");
+    expect(r.text).not.toContain(SESSION_VALUE);
     await c.close();
   });
 
@@ -95,8 +105,8 @@ describe("server", () => {
   });
 
   it("errors are marked untrusted, never throw, and never carry a token", async () => {
-    const f = fakeFetch([["https://jira.example.com/", new Error("socket closed for jira-secret-token")]]);
-    const c = await connect({ env: ALL_ENV, fetchFn: f.fetchFn });
+    const f = fakeFetch([["https://jira.example.com/", new Error(`socket closed for ${SESSION_VALUE}`)]]);
+    const c = await connect({ env: ALL_ENV, fetchFn: f.fetchFn, sessionProvider: fakeSession() });
     const cases: Array<Record<string, unknown>> = [
       { ref: "PROJ-1", provider: "jira" },
       { ref: "https://github.com.evil.example/o/r/issues/1" },

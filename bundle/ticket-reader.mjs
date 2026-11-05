@@ -36768,6 +36768,99 @@ var Http = class {
   }
 };
 
+// mcp/ticket-reader/src/jira-session.ts
+var DEFAULT_LOGIN_TIMEOUT_S = 120;
+var MIN_SECRET_LENGTH = 8;
+var NO_COOKIE_MISS = "Jira: no session cookie for this host";
+var WINDOW_SPENT_MISS = "Jira: a login window has already been opened by this server and it will not reopen. To retry: restart the MCP server";
+var liveSecrets = /* @__PURE__ */ new Set();
+function sessionSecrets() {
+  return [...liveSecrets];
+}
+function namesUser(body) {
+  if (typeof body !== "object" || body === null) return false;
+  const o = body;
+  return [o.displayName, o.name, o.emailAddress].some((v) => typeof v === "string" && v !== "");
+}
+function loginTimeoutMs(env) {
+  const seconds = Number(env.JIRA_LOGIN_TIMEOUT_S?.trim() || DEFAULT_LOGIN_TIMEOUT_S);
+  return (Number.isFinite(seconds) && seconds > 0 ? seconds : DEFAULT_LOGIN_TIMEOUT_S) * 1e3;
+}
+function isIp(host) {
+  return /^\d+\.\d+\.\d+\.\d+$/.test(host) || host.startsWith("[");
+}
+function domainMatches(cookieDomain, host) {
+  const domain2 = cookieDomain.toLowerCase();
+  if (!domain2.startsWith(".")) return domain2 === host;
+  const parent = domain2.slice(1);
+  if (isIp(host) || !parent.includes(".")) return false;
+  return host === parent || host.endsWith(domain2);
+}
+function pathMatches(cookiePath, urlPath) {
+  if (!cookiePath || cookiePath === "/") return true;
+  const path = urlPath === "" ? "/" : urlPath;
+  return path === cookiePath || path.startsWith(cookiePath.endsWith("/") ? cookiePath : `${cookiePath}/`);
+}
+function eligible(cookies, baseUrl) {
+  const url2 = new URL(baseUrl);
+  if (url2.protocol !== "https:") return [];
+  const nowS = Date.now() / 1e3;
+  return cookies.filter(
+    (c) => domainMatches(c.domain, url2.hostname.toLowerCase()) && pathMatches(c.path, url2.pathname) && !(typeof c.expires === "number" && c.expires >= 0 && c.expires < nowS) && /^[\x21-\x7e]+$/.test(c.name) && !/[=;]/.test(c.name) && /^[\x20-\x7e]*$/.test(c.value) && !c.value.includes(";")
+  );
+}
+var JiraSession = class {
+  constructor(provider, baseUrl) {
+    this.provider = provider;
+    this.baseUrl = baseUrl;
+  }
+  current = null;
+  pending = null;
+  windowSpent = false;
+  blocked = null;
+  acquire(timeoutMs) {
+    if (this.current) return Promise.resolve({ ok: true, ...this.current });
+    if (this.blocked) return Promise.resolve({ ok: false, miss: this.blocked });
+    this.pending ??= this.open(timeoutMs).finally(() => {
+      this.pending = null;
+    });
+    return this.pending;
+  }
+  async open(timeoutMs) {
+    const allowWindow = !this.windowSpent;
+    const outcome = await this.provider({ baseUrl: this.baseUrl, loginTimeoutMs: timeoutMs, allowWindow });
+    if (outcome.windowOpened) this.windowSpent = true;
+    const kept = outcome.ok ? eligible(outcome.cookies, this.baseUrl) : [];
+    if (kept.length === 0) {
+      if (this.windowSpent) this.blocked = WINDOW_SPENT_MISS;
+      if (!allowWindow) return { ok: false, miss: WINDOW_SPENT_MISS };
+      return { ok: false, miss: outcome.ok ? NO_COOKIE_MISS : outcome.miss };
+    }
+    const header = kept.map((c) => `${c.name}=${c.value}`).join("; ");
+    const secrets = [header, ...kept.map((c) => c.value).filter((v) => v.length >= MIN_SECRET_LENGTH)];
+    this.current = { header, secrets };
+    for (const s of secrets) liveSecrets.add(s);
+    return { ok: true, ...this.current };
+  }
+  /** A Jira read succeeded with these cookies: the outage is over, the next one gets its window. */
+  confirmed() {
+    this.windowSpent = false;
+  }
+  /** Forgets the cookies. The next `acquire` redoes the check. */
+  drop() {
+    if (this.current) for (const s of this.current.secrets) liveSecrets.delete(s);
+    this.current = null;
+  }
+};
+var sessions = /* @__PURE__ */ new WeakMap();
+function sessionFor(provider, baseUrl) {
+  let byBase = sessions.get(provider);
+  if (!byBase) sessions.set(provider, byBase = /* @__PURE__ */ new Map());
+  let session = byBase.get(baseUrl);
+  if (!session) byBase.set(baseUrl, session = new JiraSession(provider, baseUrl));
+  return session;
+}
+
 // mcp/ticket-reader/src/config.ts
 function val(env, name2) {
   const v = env[name2]?.trim();
@@ -36807,21 +36900,9 @@ function jiraConfig(env, allowHttpLocalhost = false) {
       }
     }
   }
-  const email3 = val(env, "JIRA_EMAIL");
-  const apiToken = val(env, "JIRA_API_TOKEN");
-  const pat = val(env, "JIRA_PAT");
-  let mode;
-  if (email3 && apiToken) mode = "cloud";
-  else if (pat) mode = "pat";
-  else problems.push("Jira credentials are not set: JIRA_EMAIL + JIRA_API_TOKEN (Jira Cloud) or JIRA_PAT (Data Center / Server)");
-  if (problems.length > 0 || !base || !mode) return { ok: false, problems };
+  if (problems.length > 0 || !base) return { ok: false, problems };
   const basePath = base.pathname.replace(/\/+$/, "");
-  const authHeader = mode === "cloud" ? `Basic ${Buffer.from(`${email3}:${apiToken}`).toString("base64")}` : `Bearer ${pat}`;
-  const secrets = [apiToken, pat, authHeader, mode === "cloud" ? authHeader.slice(6) : void 0].filter((s) => s !== void 0);
-  return {
-    ok: true,
-    value: { baseUrl: `${base.protocol}//${base.host}${basePath}`, host: base.host, basePath, mode, authHeader, apiVersion: mode === "cloud" ? 3 : 2, secrets }
-  };
+  return { ok: true, value: { baseUrl: `${base.protocol}//${base.host}${basePath}`, host: base.host, basePath, loginTimeoutMs: loginTimeoutMs(env) } };
 }
 function githubConfig(env) {
   const token = val(env, "GITHUB_TOKEN");
@@ -36851,24 +36932,22 @@ function linearConfig(env) {
 }
 function secretsOf(env) {
   const out = [];
-  for (const name2 of ["JIRA_API_TOKEN", "JIRA_PAT", "GITHUB_TOKEN", "GITLAB_TOKEN", "LINEAR_API_KEY"]) {
+  for (const name2 of ["GITHUB_TOKEN", "GITLAB_TOKEN", "LINEAR_API_KEY"]) {
     const v = val(env, name2);
     if (v) out.push(v);
   }
-  const email3 = val(env, "JIRA_EMAIL");
-  const token = val(env, "JIRA_API_TOKEN");
-  if (email3 && token) out.push(Buffer.from(`${email3}:${token}`).toString("base64"));
   return out;
 }
 function providerStatuses(env, allowHttpLocalhost = false) {
   const out = [];
   const jira = jiraConfig(env, allowHttpLocalhost);
   out.push(
-    jira.ok ? { provider: "jira", configured: true, details: { host: jira.value.host, auth: jira.value.mode === "cloud" ? "api token (Jira Cloud, REST v3)" : "personal access token (Data Center / Server, REST v2)" } } : {
+    jira.ok ? { provider: "jira", configured: true, details: { host: jira.value.host, auth: "browser session (SSO login in a Chromium window, no token)" }, optionalEnv: ["JIRA_LOGIN_TIMEOUT_S"] } : {
       provider: "jira",
       configured: false,
       details: {},
-      setEnv: ["JIRA_BASE_URL", "JIRA_EMAIL + JIRA_API_TOKEN (Jira Cloud) or JIRA_PAT (Data Center / Server)"],
+      setEnv: ["JIRA_BASE_URL"],
+      optionalEnv: ["JIRA_LOGIN_TIMEOUT_S"],
       problems: jira.problems
     }
   );
@@ -36887,6 +36966,96 @@ function providerStatuses(env, allowHttpLocalhost = false) {
   out.push(linear.ok ? { provider: "linear", configured: true, details: { host: "linear.app" } } : { provider: "linear", configured: false, details: {}, setEnv: ["LINEAR_API_KEY"], problems: linear.problems });
   return out;
 }
+
+// mcp/ticket-reader/src/jira-browser.ts
+import { existsSync, mkdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+var POLL_MS = 2e3;
+var PROBE_TIMEOUT_MS = 1e4;
+var INSTALL_MISS = "Jira: browser unavailable. Install with `npm install playwright` then `npx playwright install chromium`";
+var LAUNCH_MISS = "Jira: the browser did not start (profile already open?)";
+var NO_WINDOW_MISS = "Jira: session missing or expired";
+function defaultProfileDir() {
+  return join(homedir(), ".proofbench", "chrome-profile");
+}
+function profileHasSession(dir) {
+  return [["Default", "Network", "Cookies"], ["Default", "Cookies"], ["Cookies"]].some((parts) => existsSync(join(dir, ...parts)));
+}
+async function loadPlaywright() {
+  const name2 = "playwright";
+  return await import(name2);
+}
+async function isAuthenticated(context, probeUrl) {
+  try {
+    const res = await context.request.get(probeUrl, {
+      headers: { Accept: "application/json" },
+      timeout: PROBE_TIMEOUT_MS,
+      maxRedirects: 0
+    });
+    return res.ok() && namesUser(await res.json());
+  } catch {
+    return false;
+  }
+}
+function launchMiss(e) {
+  return /Executable doesn't exist|playwright install/i.test(String(e?.message)) ? INSTALL_MISS : LAUNCH_MISS;
+}
+function createBrowserProvider(options = {}) {
+  const profileDir = options.profileDir ?? defaultProfileDir();
+  const importPlaywright = options.importPlaywright ?? loadPlaywright;
+  const sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const now = options.now ?? Date.now;
+  return async ({ baseUrl, loginTimeoutMs: loginTimeoutMs2, allowWindow }) => {
+    let chromium;
+    try {
+      ({ chromium } = await importPlaywright());
+    } catch {
+      return { ok: false, miss: INSTALL_MISS };
+    }
+    const probeUrl = `${baseUrl}/rest/api/2/myself`;
+    try {
+      mkdirSync(profileDir, { recursive: true, mode: 448 });
+      if (profileHasSession(profileDir)) {
+        const context2 = await chromium.launchPersistentContext(profileDir, { headless: true });
+        try {
+          if (await isAuthenticated(context2, probeUrl)) return { ok: true, cookies: await context2.cookies(baseUrl) };
+        } finally {
+          await context2.close();
+        }
+      }
+      if (!allowWindow) return { ok: false, miss: NO_WINDOW_MISS };
+      const context = await chromium.launchPersistentContext(profileDir, { headless: false });
+      try {
+        try {
+          const page = await context.newPage();
+          await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+        } catch {
+        }
+        const deadline = now() + loginTimeoutMs2;
+        for (; ; ) {
+          if (await isAuthenticated(context, probeUrl)) {
+            return { ok: true, cookies: await context.cookies(baseUrl), windowOpened: true };
+          }
+          const left = deadline - now();
+          if (left <= 0) break;
+          await sleep(Math.min(POLL_MS, left));
+        }
+      } finally {
+        await context.close();
+      }
+      const seconds = Math.round(loginTimeoutMs2 / 1e3);
+      return {
+        ok: false,
+        windowOpened: true,
+        miss: `Jira: login not completed within ${seconds} s. Finish logging in and retry: restarting the MCP server reopens the window`
+      };
+    } catch (e) {
+      return { ok: false, miss: launchMiss(e) };
+    }
+  };
+}
+var browserSessionProvider = createBrowserProvider();
 
 // mcp/ticket-reader/src/text.ts
 function rec(v) {
@@ -37206,13 +37375,26 @@ function kindOf(typeName) {
       return "other";
   }
 }
-async function readJira(ref, cfg, ctx) {
+var SESSION_MISS = "Jira: session missing or expired. Log in again: restart the MCP server to reopen the login window";
+function sessionRejected(res) {
+  return !res.ok && (res.status === 401 || /redirect refused/.test(res.miss));
+}
+async function readJira(ref, cfg, ctx, session) {
   const { http, params } = ctx;
-  const headers = { Authorization: cfg.authHeader };
-  const api = `${cfg.baseUrl}/rest/api/${cfg.apiVersion}/issue/${encode3(ref.key)}`;
+  const headers = { Cookie: session.cookie };
+  const api = `${cfg.baseUrl}/rest/api/2/issue/${encode3(ref.key)}`;
   const browse = (key) => `${cfg.baseUrl}/browse/${encode3(key)}`;
   const misses = [];
-  const issue2 = rec(must(await http.get(`${api}?fields=${FIELDS}`, headers)).body);
+  const first = await http.get(`${api}?fields=${FIELDS}`, headers);
+  if (!first.ok) {
+    if (sessionRejected(first)) {
+      session.handle.drop();
+      throw new Error(SESSION_MISS);
+    }
+    throw new Error(first.miss);
+  }
+  session.handle.confirmed();
+  const issue2 = rec(first.body);
   const f = rec(issue2?.fields);
   if (!issue2 || !f) throw new Error("Jira: unexpected response shape");
   const raw = [];
@@ -37469,11 +37651,11 @@ async function readTicket(input2, params, deps) {
   const { env, allowHttpLocalhost } = deps;
   const parsed = parseRef(input2.ref, input2.provider, refContext(env, allowHttpLocalhost));
   const secrets = secretsOf(env);
-  const http = (service, rateLimitHint) => new Http({
+  const http = (service, rateLimitHint, extraSecrets = []) => new Http({
     fetchFn: deps.fetchFn,
     limiter: deps.limiter,
     service,
-    secrets,
+    secrets: [...secrets, ...extraSecrets],
     ...allowHttpLocalhost !== void 0 ? { allowHttpLocalhost } : {},
     ...deps.timeoutMs !== void 0 ? { timeoutMs: deps.timeoutMs } : {},
     ...rateLimitHint !== void 0 ? { rateLimitHint } : {}
@@ -37482,7 +37664,10 @@ async function readTicket(input2, params, deps) {
     case "jira": {
       const cfg = jiraConfig(env, allowHttpLocalhost);
       if (!cfg.ok) throw notConfigured("Jira", cfg.problems);
-      return readJira(parsed, cfg.value, { http: http("Jira"), params });
+      const handle = sessionFor(deps.sessionProvider ?? browserSessionProvider, cfg.value.baseUrl);
+      const acquired = await handle.acquire(cfg.value.loginTimeoutMs);
+      if (!acquired.ok) throw new Error(acquired.miss);
+      return readJira(parsed, cfg.value, { http: http("Jira", void 0, acquired.secrets), params }, { handle, cookie: acquired.header });
     }
     case "github": {
       const cfg = githubConfig(env);
@@ -37544,12 +37729,14 @@ function createServer(deps = {}) {
             fetchFn: deps.fetchFn ?? fetch,
             limiter,
             ...deps.allowHttpLocalhost !== void 0 ? { allowHttpLocalhost: deps.allowHttpLocalhost } : {},
-            ...deps.timeoutMs !== void 0 ? { timeoutMs: deps.timeoutMs } : {}
+            ...deps.timeoutMs !== void 0 ? { timeoutMs: deps.timeoutMs } : {},
+            ...deps.sessionProvider ? { sessionProvider: deps.sessionProvider } : {}
           }
         );
-        return toResult(ticket, secrets);
+        return toResult(ticket, [...secrets, ...sessionSecrets()]);
       } catch (e) {
-        return toResult({ error: redact(e instanceof Error ? e.message : String(e), secrets) }, secrets, true);
+        const all = [...secrets, ...sessionSecrets()];
+        return toResult({ error: redact(e instanceof Error ? e.message : String(e), all) }, all, true);
       }
     }
   );

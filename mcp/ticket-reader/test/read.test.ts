@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readTicket } from "../src/read.js";
-import { deps, GITHUB_ENV, GITLAB_ENV, JIRA_CLOUD, JIRA_PAT, LINEAR_ENV, PARAMS } from "./helpers/fake.js";
+import { deps, GITHUB_ENV, GITLAB_ENV, JIRA_COOKIE, JIRA_ENV, JIRA_PATH_ENV, SESSION_VALUE, fakeSession, LINEAR_ENV, PARAMS } from "./helpers/fake.js";
 
 const adf = (text: string) => ({ type: "doc", version: 1, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 
@@ -33,10 +33,10 @@ describe("Jira", () => {
     ],
   };
 
-  it("normalises a Jira Cloud issue (REST v3, Basic auth, ADF to text)", async () => {
-    const { deps: d, calls } = deps(JIRA_CLOUD, [
-      ["https://jira.example.com/rest/api/3/issue/PROJ-123/comment", { body: comments }],
-      ["https://jira.example.com/rest/api/3/issue/PROJ-123", { body: issue }],
+  it("normalises a Jira issue (REST v2, session cookie, ADF to text)", async () => {
+    const { deps: d, calls } = deps(JIRA_ENV, [
+      ["https://jira.example.com/rest/api/2/issue/PROJ-123/comment", { body: comments }],
+      ["https://jira.example.com/rest/api/2/issue/PROJ-123", { body: issue }],
     ]);
     const t = await readTicket({ ref: "https://jira.example.com/browse/PROJ-123" }, PARAMS, d);
     expect(t).toMatchObject({
@@ -63,13 +63,15 @@ describe("Jira", () => {
     ]);
     expect(JSON.stringify(t)).not.toContain("ada@example.com");
     expect(calls).toHaveLength(2);
-    expect((calls[0]?.init?.headers as Record<string, string>).Authorization).toBe(`Basic ${Buffer.from("dev@example.com:jira-secret-token").toString("base64")}`);
+    const sent = calls[0]?.init?.headers as Record<string, string>;
+    expect(sent.Cookie).toBe(JIRA_COOKIE);
+    expect(sent.Authorization).toBeUndefined();
     expect(calls[1]?.url).toContain("maxResults=20");
   });
 
-  it("uses REST v2 and a Bearer token for a PAT, with plain-text fields", async () => {
+  it("keeps the context path in the API and browse URLs, with plain-text fields", async () => {
     const v2 = { ...issue, fields: { ...issue.fields, description: "wiki *text*" } };
-    const { deps: d, calls } = deps(JIRA_PAT, [
+    const { deps: d, calls } = deps(JIRA_PATH_ENV, [
       ["https://jira.example.com/jira/rest/api/2/issue/PROJ-123/comment", { body: { comments: [{ author: { name: "bob" }, created: "2026-01-01", body: "plain" }] } }],
       ["https://jira.example.com/jira/rest/api/2/issue/PROJ-123", { body: v2 }],
     ]);
@@ -77,14 +79,14 @@ describe("Jira", () => {
     expect(t.description).toBe("wiki *text*");
     expect(t.comments[0]).toMatchObject({ author: "bob", body: "plain" });
     expect(t.url).toBe("https://jira.example.com/jira/browse/PROJ-123");
-    expect((calls[0]?.init?.headers as Record<string, string>).Authorization).toBe("Bearer pat-secret-value");
+    expect((calls[0]?.init?.headers as Record<string, string>).Cookie).toBe(JIRA_COOKIE);
   });
 
   it("applies the comment limit and the truncation flags", async () => {
     const many = { comments: Array.from({ length: 5 }, (_, i) => ({ author: { displayName: "u" }, created: `2026-01-0${i + 1}`, body: adf(i === 4 ? "z".repeat(2500) : `c${i}`) })) };
-    const { deps: d } = deps(JIRA_CLOUD, [
-      ["https://jira.example.com/rest/api/3/issue/PROJ-123/comment", { body: many }],
-      ["https://jira.example.com/rest/api/3/issue/PROJ-123", { body: { ...issue, fields: { ...issue.fields, description: adf("d".repeat(100)) } } }],
+    const { deps: d } = deps(JIRA_ENV, [
+      ["https://jira.example.com/rest/api/2/issue/PROJ-123/comment", { body: many }],
+      ["https://jira.example.com/rest/api/2/issue/PROJ-123", { body: { ...issue, fields: { ...issue.fields, description: adf("d".repeat(100)) } } }],
     ]);
     const t = await readTicket({ ref: "PROJ-123" }, { commentLimit: 2, descriptionMaxChars: 10 }, d);
     expect(t.description).toBe("d".repeat(10));
@@ -97,36 +99,65 @@ describe("Jira", () => {
   });
 
   it("commentLimit 0 makes no comments call", async () => {
-    const { deps: d, calls } = deps(JIRA_CLOUD, [["https://jira.example.com/rest/api/3/issue/PROJ-123", { body: issue }]]);
+    const { deps: d, calls } = deps(JIRA_ENV, [["https://jira.example.com/rest/api/2/issue/PROJ-123", { body: issue }]]);
     const t = await readTicket({ ref: "PROJ-123" }, { commentLimit: 0, descriptionMaxChars: 100 }, d);
     expect(t.comments).toEqual([]);
     expect(calls).toHaveLength(1);
   });
 
   it("a failing comments call is a miss, not an error", async () => {
-    const { deps: d } = deps(JIRA_CLOUD, [
-      ["https://jira.example.com/rest/api/3/issue/PROJ-123/comment", { status: 403 }],
-      ["https://jira.example.com/rest/api/3/issue/PROJ-123", { body: issue }],
+    const { deps: d } = deps(JIRA_ENV, [
+      ["https://jira.example.com/rest/api/2/issue/PROJ-123/comment", { status: 403 }],
+      ["https://jira.example.com/rest/api/2/issue/PROJ-123", { body: issue }],
     ]);
     const t = await readTicket({ ref: "PROJ-123" }, PARAMS, d);
     expect(t.comments).toEqual([]);
     expect(t.misses).toEqual(["Jira: access denied (HTTP 403), token missing, expired or without read permission"]);
   });
 
-  it("is not configured without credentials and names the variables", async () => {
-    const { deps: d, calls } = deps({ JIRA_BASE_URL: "https://jira.example.com" }, []);
-    await expect(readTicket({ ref: "https://jira.example.com/browse/PROJ-1", provider: "jira" }, PARAMS, d)).rejects.toThrow(/JIRA_EMAIL \+ JIRA_API_TOKEN/);
+  it("is not configured without JIRA_BASE_URL and names the variable", async () => {
+    const { deps: d, calls } = deps({}, []);
+    await expect(readTicket({ ref: "PROJ-1", provider: "jira" }, PARAMS, d)).rejects.toThrow(/JIRA_BASE_URL/);
+    expect(calls).toEqual([]);
+  });
+
+  it("makes no request when the login gives no session, and says why", async () => {
+    const { deps: d, calls } = deps(JIRA_ENV, [], { sessionProvider: async () => ({ ok: false, miss: "Jira: login not completed within 120 s" }) });
+    await expect(readTicket({ ref: "PROJ-1" }, PARAMS, d)).rejects.toThrow(/login not completed/);
+    expect(calls).toEqual([]);
+  });
+
+  it("drops the session on a 401 and asks to log in again", async () => {
+    let logins = 0;
+    const provider = async () => {
+      logins += 1;
+      return fakeSession()({ baseUrl: "https://jira.example.com", loginTimeoutMs: 1, allowWindow: true });
+    };
+    const { deps: d } = deps(JIRA_ENV, [["https://jira.example.com/rest/api/2/issue/PROJ-1", { status: 401 }]], { sessionProvider: provider });
+    await expect(readTicket({ ref: "PROJ-1" }, PARAMS, d)).rejects.toThrow(/session missing or expired/);
+    await expect(readTicket({ ref: "PROJ-1" }, PARAMS, d)).rejects.toThrow(/session missing or expired/);
+    expect(logins).toBe(2);
+  });
+
+  it("treats a redirect to the SSO page as an expired session", async () => {
+    const { deps: d } = deps(JIRA_ENV, [["https://jira.example.com/rest/api/2/issue/PROJ-1", () => new Error("redirect")]]);
+    await expect(readTicket({ ref: "PROJ-1" }, PARAMS, d)).rejects.toThrow(/session missing or expired/);
+  });
+
+  it("does not use a cookie that belongs to another host", async () => {
+    const { deps: d, calls } = deps(JIRA_ENV, [], { sessionProvider: fakeSession("other.example.com") });
+    await expect(readTicket({ ref: "PROJ-1" }, PARAMS, d)).rejects.toThrow(/no session cookie/);
     expect(calls).toEqual([]);
   });
 
   it("refuses a Jira URL on another host before any request", async () => {
-    const { deps: d, calls } = deps(JIRA_CLOUD, []);
+    const { deps: d, calls } = deps(JIRA_ENV, []);
     await expect(readTicket({ ref: "https://jira.example.com.evil.example/browse/PROJ-1" }, PARAMS, d)).rejects.toThrow(/not a configured tracker host/);
     expect(calls).toEqual([]);
   });
 
   it("refuses a plain-http base URL", async () => {
-    const { deps: d } = deps({ ...JIRA_CLOUD, JIRA_BASE_URL: "http://jira.example.com" }, []);
+    const { deps: d } = deps({ ...JIRA_ENV, JIRA_BASE_URL: "http://jira.example.com" }, []);
     await expect(readTicket({ ref: "PROJ-1", provider: "jira" }, PARAMS, d)).rejects.toThrow(/HTTPS/);
   });
 });
@@ -319,7 +350,7 @@ describe("Linear", () => {
   });
 
   it("a key needs provider linear when Jira is also configured", async () => {
-    const { deps: d } = deps({ ...JIRA_CLOUD, ...LINEAR_ENV }, [["https://api.linear.app/graphql", { body: { data: { issue } } }]]);
+    const { deps: d } = deps({ ...JIRA_ENV, ...LINEAR_ENV }, [["https://api.linear.app/graphql", { body: { data: { issue } } }]]);
     await expect(readTicket({ ref: "ENG-12" }, PARAMS, d)).rejects.toThrow(/ambiguous/);
     expect((await readTicket({ ref: "ENG-12", provider: "linear" }, PARAMS, d)).provider).toBe("linear");
   });
@@ -336,30 +367,30 @@ describe("Linear", () => {
 
 describe("failure modes on the main request", () => {
   const cases: Array<[string, Parameters<typeof deps>[1][number][1], RegExp]> = [
-    ["401", { status: 401 }, /access denied \(HTTP 401\)/],
+    ["401", { status: 401 }, /session missing or expired/],
     ["403", { status: 403 }, /access denied \(HTTP 403\)/],
     ["404", { status: 404 }, /not found/],
     ["429", { status: 429 }, /rate limit reached/],
     ["500", { status: 500 }, /server error/],
     ["invalid JSON", { raw: "<html>" }, /not valid JSON/],
     ["oversized", { raw: "x".repeat(2 * 1024 * 1024 + 5) }, /too large/],
-    ["network error carrying the token", new Error("down jira-secret-token"), /request failed \(down \*\*\*\)/],
-    ["redirect", { status: 302, headers: { location: "https://evil.example/" } }, /redirect refused/],
+    ["network error carrying the session cookie", new Error(`down ${SESSION_VALUE}`), /request failed \(down \*\*\*\)/],
+    ["redirect to the SSO page", { status: 302, headers: { location: "https://evil.example/" } }, /session missing or expired/],
   ];
   it.each(cases)("%s", async (_name, reply, re) => {
-    const { deps: d } = deps(JIRA_CLOUD, [["https://jira.example.com/", reply]]);
+    const { deps: d } = deps(JIRA_ENV, [["https://jira.example.com/", reply]]);
     const err = await readTicket({ ref: "PROJ-1" }, PARAMS, d).then(
       () => null,
       (e: Error) => e,
     );
     expect(err?.message).toMatch(re);
-    expect(err?.message).not.toContain("jira-secret-token");
+    expect(err?.message).not.toContain(SESSION_VALUE);
   });
 
   it("times out", async () => {
     const fetchFn = ((_u: string, init: RequestInit) =>
       new Promise((_, reject) => init.signal?.addEventListener("abort", () => reject(init.signal?.reason)))) as unknown as typeof fetch;
-    const { deps: d } = deps(JIRA_CLOUD, []);
+    const { deps: d } = deps(JIRA_ENV, []);
     await expect(readTicket({ ref: "PROJ-1" }, PARAMS, { ...d, fetchFn, timeoutMs: 20 })).rejects.toThrow(/timed out/);
   });
 });

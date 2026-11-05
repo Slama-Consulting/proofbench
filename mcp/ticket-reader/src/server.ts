@@ -6,6 +6,7 @@ import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { providerStatuses, secretsOf, type Env } from "./config.js";
 import { createLimiter, redact, type FetchFn } from "./http.js";
+import { sessionSecrets, type SessionProvider } from "./jira-session.js";
 import { readTicket } from "./read.js";
 import { PROVIDERS } from "./types.js";
 
@@ -19,6 +20,8 @@ export interface ServerDeps {
   timeoutMs?: number;
   /** Minimum delay between two requests to one provider (default 500 ms = 2 requests per second). */
   minIntervalMs?: number;
+  /** Reserved for tests: replaces the Chromium login that gives the Jira session cookies. */
+  sessionProvider?: SessionProvider;
 }
 
 /** Every tool reads: nothing here can write to a tracker. */
@@ -73,11 +76,13 @@ export function createServer(deps: ServerDeps = {}): McpServer {
             limiter,
             ...(deps.allowHttpLocalhost !== undefined ? { allowHttpLocalhost: deps.allowHttpLocalhost } : {}),
             ...(deps.timeoutMs !== undefined ? { timeoutMs: deps.timeoutMs } : {}),
+            ...(deps.sessionProvider ? { sessionProvider: deps.sessionProvider } : {}),
           },
         );
-        return toResult(ticket, secrets);
+        return toResult(ticket, [...secrets, ...sessionSecrets()]);
       } catch (e) {
-        return toResult({ error: redact(e instanceof Error ? e.message : String(e), secrets) }, secrets, true);
+        const all = [...secrets, ...sessionSecrets()];
+        return toResult({ error: redact(e instanceof Error ? e.message : String(e), all) }, all, true);
       }
     }) as never,
   );

@@ -36,15 +36,13 @@ All optional: without them, local git answers in part and what is missing is rep
 |---|---|
 | `GITLAB_TOKEN` | Reading merge requests. Without it, falls back to the `glab` token. |
 | `JIRA_BASE_URL` | Jira URL, in HTTPS. The only source of the Jira host: never a repository, its config, a commit or a ticket. |
-| `JIRA_EMAIL` | Jira account, used with the token. Not needed with browser login. |
-| `JIRA_API_TOKEN` | Jira API token. Empty or absent: browser login. |
 | `JIRA_LOGIN_TIMEOUT_S` | How long to wait for the browser login, in seconds. 120 by default. |
 
-With a token, `JIRA_EMAIL` is required and access goes through REST v3. Without a token, see below. Without `JIRA_BASE_URL`, Jira is not queried. The fallback to `glab config get token --host <host>` **is not verified**: `glab` was absent from the development machine, and recent versions may keep the token in the system keychain. In that case the fallback fails and says so.
+Jira is read through the browser login described below, on REST v2: there is no API token mode. Without `JIRA_BASE_URL`, Jira is not queried. The fallback to `glab config get token --host <host>` **is not verified**: `glab` was absent from the development machine, and recent versions may keep the token in the system keychain. In that case the fallback fails and says so.
 
 ## Jira browser login
 
-For a Jira behind SSO or MFA, without an API token. Just set `JIRA_BASE_URL` and leave `JIRA_API_TOKEN` empty. Once, by hand, in `mcp/regression-tracer`:
+For a Jira behind SSO or MFA. Just set `JIRA_BASE_URL`. Once, by hand, in `mcp/regression-tracer`:
 
 ```bash
 npm install playwright

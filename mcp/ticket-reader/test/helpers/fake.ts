@@ -1,4 +1,5 @@
 import { createLimiter } from "../../src/http.js";
+import type { SessionProvider } from "../../src/jira-session.js";
 import type { ReadDeps } from "../../src/read.js";
 
 export interface Reply {
@@ -33,16 +34,24 @@ export function fakeFetch(routes: Route[]) {
   return { fetchFn, calls };
 }
 
+export const SESSION_VALUE = "sess-secret-cookie-value";
+export const JIRA_COOKIE = `JSESSIONID=${SESSION_VALUE}`;
+
+/** A login that already succeeded: hands over one session cookie for the Jira host, no browser. */
+export function fakeSession(host = "jira.example.com"): SessionProvider {
+  return async () => ({ ok: true, cookies: [{ name: "JSESSIONID", value: SESSION_VALUE, domain: host }] });
+}
+
 export function deps(env: Record<string, string>, routes: Route[], extra: Partial<ReadDeps> = {}) {
   const f = fakeFetch(routes);
-  const d: ReadDeps = { env, fetchFn: f.fetchFn, limiter: createLimiter(0), ...extra };
+  const d: ReadDeps = { env, fetchFn: f.fetchFn, limiter: createLimiter(0), sessionProvider: fakeSession(), ...extra };
   return { deps: d, calls: f.calls };
 }
 
 export const PARAMS = { commentLimit: 20, descriptionMaxChars: 8000 };
 
-export const JIRA_CLOUD = { JIRA_BASE_URL: "https://jira.example.com", JIRA_EMAIL: "dev@example.com", JIRA_API_TOKEN: "jira-secret-token" };
-export const JIRA_PAT = { JIRA_BASE_URL: "https://jira.example.com/jira", JIRA_PAT: "pat-secret-value" };
+export const JIRA_ENV = { JIRA_BASE_URL: "https://jira.example.com" };
+export const JIRA_PATH_ENV = { JIRA_BASE_URL: "https://jira.example.com/jira" };
 export const GITLAB_ENV = { GITLAB_TOKEN: "glpat-secret-token-value", GITLAB_HOST: "gitlab.example.com" };
 export const LINEAR_ENV = { LINEAR_API_KEY: "lin_api_secret_key" };
 export const GITHUB_ENV = { GITHUB_TOKEN: "ghp_secret_token_value" };

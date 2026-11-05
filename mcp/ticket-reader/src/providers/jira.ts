@@ -1,8 +1,10 @@
 import type { JiraConfig } from "../config.js";
+import type { JiraSession } from "../jira-session.js";
 import type { ParsedRef } from "../refs.js";
 import { adfToText, arr, rec, str, truncate } from "../text.js";
 import type { Kind, Ticket, TicketLink } from "../types.js";
-import { encode, must, toComments, type ProviderCtx, type RawComment } from "./common.js";
+import type { Res } from "../http.js";
+import { encode, toComments, type ProviderCtx, type RawComment } from "./common.js";
 
 const FIELDS = "summary,status,issuetype,creator,reporter,assignee,labels,priority,created,updated,description,issuelinks,parent,subtasks";
 
@@ -27,14 +29,36 @@ function kindOf(typeName: string | null): Kind {
   }
 }
 
-export async function readJira(ref: Extract<ParsedRef, { provider: "jira" }>, cfg: JiraConfig, ctx: ProviderCtx): Promise<Ticket> {
+const SESSION_MISS = "Jira: session missing or expired. Log in again: restart the MCP server to reopen the login window";
+
+/** The server turns the session down: 401, or a redirect to the SSO login page. */
+function sessionRejected(res: Res): boolean {
+  return !res.ok && (res.status === 401 || /redirect refused/.test(res.miss));
+}
+
+/** The session cookies are the only credential: REST v2, read-only, same endpoints a logged-in browser uses. */
+export async function readJira(
+  ref: Extract<ParsedRef, { provider: "jira" }>,
+  cfg: JiraConfig,
+  ctx: ProviderCtx,
+  session: { handle: JiraSession; cookie: string },
+): Promise<Ticket> {
   const { http, params } = ctx;
-  const headers = { Authorization: cfg.authHeader };
-  const api = `${cfg.baseUrl}/rest/api/${cfg.apiVersion}/issue/${encode(ref.key)}`;
+  const headers = { Cookie: session.cookie };
+  const api = `${cfg.baseUrl}/rest/api/2/issue/${encode(ref.key)}`;
   const browse = (key: string) => `${cfg.baseUrl}/browse/${encode(key)}`;
   const misses: string[] = [];
 
-  const issue = rec(must(await http.get(`${api}?fields=${FIELDS}`, headers)).body);
+  const first = await http.get(`${api}?fields=${FIELDS}`, headers);
+  if (!first.ok) {
+    if (sessionRejected(first)) {
+      session.handle.drop();
+      throw new Error(SESSION_MISS);
+    }
+    throw new Error(first.miss);
+  }
+  session.handle.confirmed();
+  const issue = rec(first.body);
   const f = rec(issue?.fields);
   if (!issue || !f) throw new Error("Jira: unexpected response shape");
 

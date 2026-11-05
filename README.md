@@ -121,8 +121,7 @@ Everything below is optional and uses environment variables. Nothing is ever rea
 
 | For | Set |
 |---|---|
-| `read-ticket` with Jira Cloud | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` |
-| `read-ticket` with Jira Server / Data Center | `JIRA_BASE_URL`, `JIRA_PAT` |
+| `read-ticket` with Jira (SSO, no token) | `JIRA_BASE_URL`, plus `npm install playwright` and `npx playwright install chromium` once, in `mcp/ticket-reader` (see its README) |
 | `read-ticket` with GitHub | `GITHUB_TOKEN` (optional for public repositories) |
 | `read-ticket` with GitLab | `GITLAB_TOKEN`, `GITLAB_HOST` (default `gitlab.com`) |
 | `read-ticket` with Linear | `LINEAR_API_KEY` |
@@ -202,7 +201,7 @@ Most collections are prompts. Proofbench's differentiator is that the **score is
 - Not yet verified in a live session on every assistant. Skill activation is the model's decision, helped by the router and the always-on block.
 - Install paths follow each vendor's documentation as of November 2026; they move. If one has changed, `scripts/setup.mjs` is the single place to fix.
 - The Cursor and Gemini paths read skills from your checkout, so keep the clone where it is.
-- The Jira browser login has only run against a simulated Playwright.
+- The Jira browser login (`read-ticket` and `regression-trace`) has only run against a simulated Playwright.
 - A secret scan recognises known shapes. It does not prove there are none.
 - The jadx bridge is covered by tests with a fake `jadx` only; try it on your own jadx before relying on it.
 - The bytecode tools do not follow reflection or code loaded at runtime and do not evaluate control flow, so a reachable (or missing) caller check is a lead, not a verdict.

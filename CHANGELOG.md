@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- `ticket-reader`: Jira is now read with a browser login (a Chromium window where you log in yourself, SSO and MFA included), on REST v2, like `regression-tracer`. The token modes are removed: `JIRA_EMAIL`, `JIRA_API_TOKEN` and `JIRA_PAT` are no longer read, and `JIRA_BASE_URL` alone configures Jira. New optional `JIRA_LOGIN_TIMEOUT_S`; `playwright` is an optional dependency.
+- `regression-tracer`: the Jira API token path is removed; Jira lookups always use the browser login.
+
 ## 0.3.1 - 2026-11-04
 
 - `apk-inspector`: `apk_calls` returns `callConstants`, the integers and strings certainly held by the arguments of each call (for example `PendingIntent` flags, the permission given to `registerReceiver`, `Intent` actions), and `apk_xrefs` shows them in its hits (`[arg3=0x4000000]`). The tracker is conservative: it forgets a value at every write, branch, switch case and exception handler, and gives up on a method it cannot follow.

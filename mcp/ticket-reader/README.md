@@ -31,14 +31,31 @@ Environment variables only. Nothing is ever read from a repository, a ticket or 
 | Provider | Variable | Required | Meaning |
 | --- | --- | --- | --- |
 | Jira | `JIRA_BASE_URL` | yes | HTTPS URL of your Jira, for example `https://jira.example.com` (a context path such as `/jira` is allowed) |
-| Jira Cloud | `JIRA_EMAIL` + `JIRA_API_TOKEN` | one pair or `JIRA_PAT` | Basic auth, REST v3 |
-| Jira Data Center / Server | `JIRA_PAT` | one pair or the PAT | Personal access token, Bearer auth, REST v2 |
+| Jira | `JIRA_LOGIN_TIMEOUT_S` | no | How long to wait for the browser login, in seconds. 120 by default |
 | GitHub | `GITHUB_TOKEN` | no | Public repositories work without it; anonymous calls are throttled, and a rate-limit miss says so |
 | GitLab | `GITLAB_TOKEN` | yes | Personal access token with the `read_api` scope |
 | GitLab | `GITLAB_HOST` | no | Bare host name, no scheme or port. Default `gitlab.com` |
 | Linear | `LINEAR_API_KEY` | yes | Personal API key from Linear settings |
 
 Run `ticket_providers` to see what is configured and what is missing.
+
+## Jira browser login
+
+Jira has no token mode. It is read with the session of a Chromium window where you log in yourself, SSO and MFA included, on REST v2 (`/rest/api/2`). Set `JIRA_BASE_URL`, then once, by hand, in `mcp/ticket-reader`:
+
+```bash
+npm install playwright
+npx playwright install chromium
+```
+
+Playwright is an optional dependency. If it or Chromium is missing, the read fails with a message naming those two commands.
+
+- **First read.** With no saved session, a Chromium window opens on the Jira home page. The server neither types nor reads any password: it polls `/rest/api/2/myself` every 2 seconds and closes the window as soon as Jira names someone. Later reads run headless from the saved profile. The first `ticket_read` may wait up to `JIRA_LOGIN_TIMEOUT_S`; the MCP client has its own call timeout, to set above it (`MCP_TOOL_TIMEOUT` for Claude Code, in milliseconds).
+- **One window per failure, per process.** After a window without a login, no other one opens until the MCP server is restarted (`/mcp` in Claude Code). A read that succeeds re-arms the next window.
+- **Rejected session.** A 401, or a redirect to the SSO page, drops the session and returns `session missing or expired`; the next read redoes the check.
+- **Profile.** `~/.proofbench/chrome-profile` (shared with `regression-tracer`) holds a live session: keep it private, out of any repository or shared backup. With no session to keep, delete the folder.
+- **Cookies** live only in the memory of the process, are sent only to the host of `JIRA_BASE_URL` over HTTPS with no redirect followed, and are masked in every result and error like a token. Values shorter than 8 characters are not masked.
+- **Not tried on a real Jira.** The flow has only run against a simulated Playwright.
 
 ## Security model
 
@@ -48,14 +65,14 @@ Run `ticket_providers` to see what is configured and what is missing.
 - No redirect is followed, so credentials never leave the intended host.
 - 10 second timeout, 2 MiB response cap, at most 2 requests per second per provider, at most 5 requests per read (ticket, one comments page, one links call, one file list).
 - Numeric ids must match `^\d{1,9}$`; repository, project and key segments are validated against a strict character set and URL-encoded.
-- Tokens travel only in headers and are redacted from every error, miss and result. Bodies of failed responses are never echoed.
+- Tokens and Jira session cookies travel only in headers and are redacted from every error, miss and result. Bodies of failed responses are never echoed.
 - Third-party tracker content is untrusted. It is marked as such and must never be followed as instructions.
 
 ## Limits
 
 - Read-only. No writes, ever.
 - One ticket per call. No search, no listing, no JQL.
-- No OAuth flow, and no Jira browser or SSO login: use an API token (Cloud) or a personal access token (Data Center / Server).
+- No OAuth flow and no Jira API token: Jira is read with the session of a browser login (see below).
 - Asana and other trackers are not supported yet.
 - GitHub: comments come from a single page of 100, so on a very busy issue the most recent comments may be fewer than requested (a miss says so). Cross-references from the timeline are not fetched, so `links` is empty for GitHub.
 - GitLab: file lists of merge requests come from the diffs endpoint, which also returns diffs; a very large merge request can exceed the 2 MiB cap and the file list is then reported as a miss. Additions and deletions are not available per file.

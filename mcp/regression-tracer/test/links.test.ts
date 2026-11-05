@@ -119,20 +119,6 @@ describe("linkChange", () => {
     expect(r.tickets).toEqual([expect.objectContaining({ key: "PROJ-9", source: "branch_name" })]);
   });
 
-  it("Jira 404: link kept, not validated; 200: validated; token absent from the result", async () => {
-    const { inv, repo, sha, configPath } = await setup("a PROJ-1 b PROJ-2", undefined);
-    const { fetchFn, calls } = router({
-      "/issue/PROJ-1": json({ key: "PROJ-1", fields: { summary: "S", status: { name: "Done" } } }),
-      "/issue/PROJ-2": json({}, 404),
-    });
-    const env = { JIRA_BASE_URL: "https://acme.atlassian.net", JIRA_EMAIL: "me@x.io", JIRA_API_TOKEN: "jira-secret" };
-    const r = await linkChange(inv, repo.repoId, sha, { env, fetchFn, configPath, runGlab: noGlab });
-    expect(r.tickets.find((t) => t.key === "PROJ-1")).toMatchObject({ validated: true, url: "https://acme.atlassian.net/browse/PROJ-1" });
-    expect(r.tickets.find((t) => t.key === "PROJ-2")?.validated).toBe(false);
-    expect(calls.every((c) => c.url.startsWith("https://acme.atlassian.net/"))).toBe(true);
-    expect(JSON.stringify({ r, ev: inv.evidence })).not.toContain("jira-secret");
-  });
-
   it("Jira not configured: miss, tickets not validated (undefined)", async () => {
     const { inv, repo, sha, configPath } = await setup("PROJ-1", undefined);
     const r = await linkChange(inv, repo.repoId, sha, { env: {}, configPath, runGlab: noGlab });
@@ -247,36 +233,28 @@ describe("linkChange, browser session", () => {
     expect(b.calls).toHaveLength(1);
   });
 
-  it("empty or whitespace-only token: browser too", async () => {
-    for (const JIRA_API_TOKEN of ["", "   "]) {
-      const { inv, repo, sha, configPath } = await setup("fix PROJ-1", undefined);
-      const b = browser(session);
-      const { fetchFn } = router({ "/rest/api/2/issue/PROJ-1": issue });
-      const env = { JIRA_BASE_URL: BASE, JIRA_EMAIL: "me@x.io", JIRA_API_TOKEN };
-      await linkChange(inv, repo.repoId, sha, { env, fetchFn, configPath, sessionProvider: b.sessionProvider });
-      expect(b.calls).toHaveLength(1);
-    }
-  });
-
-  it("with a token: the browser is not touched, REST v3", async () => {
+  it("no JIRA_BASE_URL: the miss names it, no browser", async () => {
+    const today = "Jira not configured (JIRA_BASE_URL): links not verified";
     const { inv, repo, sha, configPath } = await setup("fix PROJ-1", undefined);
     const b = browser(session);
-    const { fetchFn, calls } = router({ "/rest/api/3/issue/PROJ-1": issue });
-    const env = { JIRA_BASE_URL: BASE, JIRA_EMAIL: "me@x.io", JIRA_API_TOKEN: "jira-secret" };
-    await linkChange(inv, repo.repoId, sha, { env, fetchFn, configPath, sessionProvider: b.sessionProvider });
+    const r = await linkChange(inv, repo.repoId, sha, { env: {}, configPath, sessionProvider: b.sessionProvider });
+    expect(r.misses).toEqual([today]);
     expect(b.calls).toHaveLength(0);
-    expect((calls[0]?.init?.headers as Record<string, string>).Cookie).toBeUndefined();
   });
 
-  it("token without e-mail, or no JIRA_BASE_URL: today's miss, no browser", async () => {
-    const today = "Jira not configured (JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN): links not verified";
-    for (const env of [{ JIRA_BASE_URL: BASE, JIRA_API_TOKEN: "t" }, { JIRA_API_TOKEN: "t" }, {}, { JIRA_EMAIL: "me@x.io" }]) {
-      const { inv, repo, sha, configPath } = await setup("fix PROJ-1", undefined);
-      const b = browser(session);
-      const r = await linkChange(inv, repo.repoId, sha, { env, configPath, sessionProvider: b.sessionProvider });
-      expect(r.misses).toEqual([today]);
-      expect(b.calls).toHaveLength(0);
-    }
+  it("Jira 404 keeps the link unvalidated, 200 validates it, and the cookie never reaches the result", async () => {
+    const { inv, repo, sha, configPath } = await setup("a PROJ-1 b PROJ-2", undefined);
+    const b = browser(session);
+    const { fetchFn, calls } = router({
+      "/rest/api/2/myself": json({ displayName: "the user" }),
+      "/rest/api/2/issue/PROJ-1": json({ key: "PROJ-1", fields: { summary: "S", status: { name: "Done" } } }),
+      "/rest/api/2/issue/PROJ-2": json({}, 404),
+    });
+    const r = await linkChange(inv, repo.repoId, sha, { env: { JIRA_BASE_URL: BASE }, fetchFn, configPath, sessionProvider: b.sessionProvider });
+    expect(r.tickets.find((t) => t.key === "PROJ-1")).toMatchObject({ validated: true, url: `${BASE}/browse/PROJ-1` });
+    expect(r.tickets.find((t) => t.key === "PROJ-2")?.validated).toBe(false);
+    expect(calls.every((c) => c.url.startsWith(`${BASE}/`))).toBe(true);
+    expect(JSON.stringify({ r, ev: inv.evidence })).not.toContain(SECRET);
   });
 
   it("no ticket: no session requested", async () => {

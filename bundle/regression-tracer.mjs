@@ -38418,38 +38418,6 @@ function issueFields(body) {
   const status = o?.fields?.status?.name;
   return { summary: typeof summary === "string" ? summary : "", status: typeof status === "string" ? status : "" };
 }
-var JiraClient = class {
-  constructor(baseUrl, email3, token, fetchFn = fetch, opts = {}) {
-    this.email = email3;
-    this.token = token;
-    this.fetchFn = fetchFn;
-    this.opts = opts;
-    this.base = parseBase(baseUrl, opts);
-    this.auth = `Basic ${Buffer.from(`${email3}:${token}`).toString("base64")}`;
-  }
-  misses = [];
-  base;
-  auth;
-  /** URL of the ticket page, for display. Invalid key: null. */
-  browseUrl(key) {
-    return JIRA_KEY_RE.test(key) ? `${this.base}/browse/${encodeURIComponent(key)}` : null;
-  }
-  async getIssue(key) {
-    if (!JIRA_KEY_RE.test(key)) return null;
-    const url2 = `${this.base}/rest/api/3/issue/${encodeURIComponent(key)}?fields=summary,status`;
-    const r = await getJson(this.fetchFn, url2, { Authorization: this.auth }, [this.token, this.auth], this.opts.timeoutMs);
-    if (!r.ok) {
-      this.misses.push(`Jira: request failed (${r.error})`);
-      return null;
-    }
-    if (r.status === 404) return null;
-    if (r.status < 200 || r.status >= 300) {
-      this.misses.push(statusMiss("Jira", r.status));
-      return null;
-    }
-    return { key, ...issueFields(r.body) };
-  }
-};
 function sessionRejected(r) {
   return r.ok ? r.status === 401 || r.status >= 300 && r.status < 400 : r.redirected === true;
 }
@@ -38870,15 +38838,12 @@ async function linkChange(inv, repoId, sha, deps = {}) {
   const jiraInfo = /* @__PURE__ */ new Map();
   if (tickets.length > 0) {
     const base = env.JIRA_BASE_URL;
-    const email3 = env.JIRA_EMAIL;
-    const token = env.JIRA_API_TOKEN;
-    const browserMode = !!base && !token?.trim();
-    if (!base || !browserMode && (!email3 || !token)) {
-      misses.push("Jira not configured (JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN): links not verified");
+    if (!base) {
+      misses.push("Jira not configured (JIRA_BASE_URL): links not verified");
     } else {
       let jira = null;
       try {
-        jira = browserMode ? new JiraBrowserClient(base, deps.sessionProvider ?? browserSessionProvider, loginTimeoutMs(env), fetchFn, deps.clientOptions) : new JiraClient(base, email3, token, fetchFn, deps.clientOptions);
+        jira = new JiraBrowserClient(base, deps.sessionProvider ?? browserSessionProvider, loginTimeoutMs(env), fetchFn, deps.clientOptions);
       } catch (e) {
         misses.push(`Jira ignored: ${e.message}`);
       }

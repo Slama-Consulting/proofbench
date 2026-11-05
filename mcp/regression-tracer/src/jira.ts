@@ -29,49 +29,6 @@ function issueFields(body: unknown): { summary: string; status: string } {
   return { summary: typeof summary === "string" ? summary : "", status: typeof status === "string" ? status : "" };
 }
 
-/**
- * Read-only Jira client. The base URL comes only from JIRA_BASE_URL (supplied by the caller),
- * over HTTPS. The key is validated then encoded in the path. Failures do not throw: they go into
- * `misses`, which never contain the token. 404: `null` without a miss (key unknown or invisible).
- */
-export class JiraClient {
-  readonly misses: string[] = [];
-  private readonly base: string;
-  private readonly auth: string;
-
-  constructor(
-    baseUrl: string,
-    private readonly email: string,
-    private readonly token: string,
-    private readonly fetchFn: FetchFn = fetch,
-    private readonly opts: ClientOptions = {},
-  ) {
-    this.base = parseBase(baseUrl, opts);
-    this.auth = `Basic ${Buffer.from(`${email}:${token}`).toString("base64")}`;
-  }
-
-  /** URL of the ticket page, for display. Invalid key: null. */
-  browseUrl(key: string): string | null {
-    return JIRA_KEY_RE.test(key) ? `${this.base}/browse/${encodeURIComponent(key)}` : null;
-  }
-
-  async getIssue(key: string): Promise<JiraIssue | null> {
-    if (!JIRA_KEY_RE.test(key)) return null;
-    const url = `${this.base}/rest/api/3/issue/${encodeURIComponent(key)}?fields=summary,status`;
-    const r = await getJson(this.fetchFn, url, { Authorization: this.auth }, [this.token, this.auth], this.opts.timeoutMs);
-    if (!r.ok) {
-      this.misses.push(`Jira: request failed (${r.error})`);
-      return null;
-    }
-    if (r.status === 404) return null;
-    if (r.status < 200 || r.status >= 300) {
-      this.misses.push(statusMiss("Jira", r.status));
-      return null;
-    }
-    return { key, ...issueFields(r.body) };
-  }
-}
-
 /** The server rejects the session: 401, or a redirect to a login page. A 403 is settled by `/myself`. */
 function sessionRejected(r: HttpOutcome): boolean {
   return r.ok ? r.status === 401 || (r.status >= 300 && r.status < 400) : r.redirected === true;
